@@ -1,11 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import api from '../../services/api';
 import { Search, UserPlus, X, Loader2, BrainCircuit, Eye, Package2 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 
 const EmployeeList = () => {
+    const [searchParams] = useSearchParams();
+    const panel = useAuthStore((state) => state.panel);
+    const organization = useAuthStore((state) => state.organization);
+    const setOrganization = useAuthStore((state) => state.setOrganization);
+    const setToken = useAuthStore((state) => state.setToken);
+
     const [employees, setEmployees] = useState([]);
     const [roles, setRoles] = useState([]);
     const [eligibleUsers, setEligibleUsers] = useState([]);
@@ -13,11 +21,13 @@ const EmployeeList = () => {
     const [loadingEligible, setLoadingEligible] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
+    const [employeeQuery, setEmployeeQuery] = useState('');
     const [ratingBusyId, setRatingBusyId] = useState('');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
     const [overviewLoading, setOverviewLoading] = useState(false);
     const [employeeOverview, setEmployeeOverview] = useState(null);
     const [itemForm, setItemForm] = useState({ itemName: '', category: '', specs: '', estimatedValue: '', quantity: 1, notes: '' });
+    const [pageError, setPageError] = useState('');
 
     const [formData, setFormData] = useState({
         userId: '',
@@ -27,7 +37,7 @@ const EmployeeList = () => {
     });
 
     useEffect(() => {
-        fetchMasterData();
+        initializeEmployeePage();
     }, []);
 
     useEffect(() => {
@@ -35,8 +45,53 @@ const EmployeeList = () => {
         loadEligibleUsers(eligibleQuery);
     }, [eligibleQuery, isAdding]);
 
-    const fetchMasterData = async () => {
+    const ensureOwnerOrganizationContext = async () => {
+        if (panel !== 'OWNER') return;
+
+        const routeOrgId = String(searchParams.get('orgId') || '').trim();
+        const activeOrgId = String(organization?.id || organization?._id || '');
+        if (routeOrgId && activeOrgId !== routeOrgId) {
+            const { data: switchData } = await api.post('/auth/switch-organization', { organizationId: routeOrgId });
+            if (switchData?.accessToken) setToken(switchData.accessToken);
+            const { data: orgData } = await api.get('/organization');
+            setOrganization(orgData);
+            localStorage.setItem('owner-active-organization-id', routeOrgId);
+            return;
+        }
+
+        if (activeOrgId) return;
+
+        const savedOrgId = String(localStorage.getItem('owner-active-organization-id') || '').trim();
+        let targetOrgId = savedOrgId;
+        if (!targetOrgId) {
+            const { data: orgData } = await api.get('/auth/organizations');
+            const list = Array.isArray(orgData?.organizations) ? orgData.organizations : [];
+            targetOrgId = String(list[0]?.organizationId || '').trim();
+        }
+        if (!targetOrgId) return;
+
+        const { data: switchData } = await api.post('/auth/switch-organization', { organizationId: targetOrgId });
+        if (switchData?.accessToken) setToken(switchData.accessToken);
+        const { data: activeOrgData } = await api.get('/organization');
+        setOrganization(activeOrgData);
+        localStorage.setItem('owner-active-organization-id', targetOrgId);
+    };
+
+    const initializeEmployeePage = async () => {
         setLoading(true);
+        setPageError('');
+        try {
+            await ensureOwnerOrganizationContext();
+            await fetchMasterData();
+        } catch (error) {
+            console.error('Failed to initialize employee page:', error);
+            setPageError(error.response?.data?.message || 'Failed to load employee workspace data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchMasterData = async () => {
         try {
             const [employeeResp, roleResp] = await Promise.all([
                 api.get('/organization/employees'),
@@ -53,8 +108,7 @@ const EmployeeList = () => {
             }
         } catch (error) {
             console.error('Failed to fetch employees/roles:', error);
-        } finally {
-            setLoading(false);
+            throw error;
         }
     };
 
@@ -149,6 +203,19 @@ const EmployeeList = () => {
         [eligibleUsers, formData.userId]
     );
 
+    const filteredEmployees = useMemo(() => {
+        const q = String(employeeQuery || '').trim().toLowerCase();
+        if (!q) return employees;
+        return employees.filter((emp) => {
+            const name = `${emp.userId?.profile?.firstName || ''} ${emp.userId?.profile?.surname || emp.userId?.profile?.lastName || ''}`.toLowerCase();
+            const email = String(emp.userId?.email || '').toLowerCase();
+            const role = String(emp.roleId?.name || '').toLowerCase();
+            const dept = String(emp.department || '').toLowerCase();
+            const designation = String(emp.designation || '').toLowerCase();
+            return [name, email, role, dept, designation].some((value) => value.includes(q));
+        });
+    }, [employees, employeeQuery]);
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between">
@@ -234,7 +301,12 @@ const EmployeeList = () => {
             <div className="rounded-xl border bg-card text-card-foreground shadow overflow-hidden">
                 <div className="p-4 border-b bg-muted/50 flex items-center gap-2">
                     <Search className="h-4 w-4 text-muted-foreground" />
-                    <Input className="border-none shadow-none bg-transparent focus-visible:ring-0 h-auto p-0" placeholder="Search employees..." />
+                    <Input
+                        className="border-none shadow-none bg-transparent focus-visible:ring-0 h-auto p-0"
+                        placeholder="Search employees..."
+                        value={employeeQuery}
+                        onChange={(e) => setEmployeeQuery(e.target.value)}
+                    />
                 </div>
 
                 {loading ? (
@@ -252,7 +324,7 @@ const EmployeeList = () => {
                             <div className="col-span-2">Actions</div>
                         </div>
 
-                        {employees.length === 0 ? (
+                        {filteredEmployees.length === 0 ? (
                             <div className="p-12 text-center text-muted-foreground">
                                 <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
                                     <UserPlus className="h-6 w-6 opacity-50" />
@@ -261,7 +333,7 @@ const EmployeeList = () => {
                                 <p>Hire from existing registered users.</p>
                             </div>
                         ) : (
-                            employees.map((emp) => (
+                            filteredEmployees.map((emp) => (
                                 <div key={emp._id} className="p-4 grid grid-cols-8 gap-4 text-sm items-center hover:bg-muted/50 transition-colors">
                                     <div className="col-span-2 flex items-center gap-3">
                                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-medium text-xs">
@@ -306,12 +378,28 @@ const EmployeeList = () => {
                                             <Eye className="mr-1 h-3.5 w-3.5" /> Overview
                                         </Button>
                                     </div>
+                                    <div className="col-span-8 text-xs text-muted-foreground">
+                                        Structure:
+                                        {' '}
+                                        Reports To
+                                        {' '}
+                                        <span className="font-medium text-foreground">
+                                            {`${emp.reportsToEmploymentId?.userId?.profile?.firstName || ''} ${emp.reportsToEmploymentId?.userId?.profile?.surname || emp.reportsToEmploymentId?.userId?.profile?.lastName || ''}`.trim() || 'Top Level / No Manager'}
+                                        </span>
+                                        {emp.reportsToEmploymentId?.roleId?.name ? ` (${emp.reportsToEmploymentId.roleId.name})` : ''}
+                                    </div>
                                 </div>
                             ))
                         )}
                     </div>
                 )}
             </div>
+
+            {pageError && (
+                <div className="rounded-md border bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {pageError}
+                </div>
+            )}
 
             {selectedEmployeeId && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-3">
@@ -329,11 +417,37 @@ const EmployeeList = () => {
                                     <InfoBox label="Name" value={`${employeeOverview.employment?.userId?.profile?.firstName || ''} ${employeeOverview.employment?.userId?.profile?.surname || employeeOverview.employment?.userId?.profile?.lastName || ''}`.trim()} />
                                     <InfoBox label="Email" value={employeeOverview.employment?.userId?.email || '-'} />
                                     <InfoBox label="Role" value={employeeOverview.employment?.roleId?.name || '-'} />
+                                    <InfoBox label="Employment Status" value={employeeOverview.employment?.status || '-'} />
                                     <InfoBox label="Designation" value={employeeOverview.employment?.designation || '-'} />
                                     <InfoBox label="Department" value={employeeOverview.employment?.department || '-'} />
+                                    <InfoBox label="Joined On" value={formatDate(employeeOverview.employment?.joinedAt)} />
+                                    <InfoBox
+                                        label="Reports To"
+                                        value={`${employeeOverview.employment?.reportsToEmploymentId?.userId?.profile?.firstName || ''} ${employeeOverview.employment?.reportsToEmploymentId?.userId?.profile?.surname || employeeOverview.employment?.reportsToEmploymentId?.userId?.profile?.lastName || ''}`.trim() || '-'}
+                                    />
                                     <InfoBox label="AI Resume Score" value={String(employeeOverview.employment?.aiResumeRating?.score || 0)} />
                                     <InfoBox label="Attendance (Present)" value={String(employeeOverview.attendanceSummary?.PRESENT || 0)} />
-                                    <InfoBox label="Issued Value Total" value={String(employeeOverview.assetStats?.issuedValueTotal || 0)} />
+                                    <InfoBox label="Org Asset Value (Issued)" value={formatMoney(employeeOverview.assetStats?.issuedValueTotal || 0)} />
+                                    <InfoBox label="Org Asset Value (Returned)" value={formatMoney(employeeOverview.assetStats?.returnedValueTotal || 0)} />
+                                    <InfoBox label="Org Asset Loss/Damage" value={formatMoney(employeeOverview.assetStats?.lostOrDamagedValueTotal || 0)} />
+                                    <InfoBox label="Current Salary (Net)" value={formatMoney(employeeOverview.salaryStats?.latestNetPayable || 0)} />
+                                    <InfoBox label="Basic Salary" value={formatMoney(employeeOverview.salaryStats?.latestBasicSalary || 0)} />
+                                    <InfoBox label="Paid This Month" value={formatMoney(employeeOverview.salaryStats?.totalPaidThisMonth || 0)} />
+                                    <InfoBox label="Pending Salary" value={formatMoney(employeeOverview.salaryStats?.totalPendingThisMonth || 0)} />
+                                </div>
+
+                                <div className="rounded-lg border p-3">
+                                    <h4 className="mb-2 font-semibold">Salary & Organization Support Snapshot</h4>
+                                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 text-sm">
+                                        <InfoBox label="Latest Payroll Status" value={employeeOverview.salaryStats?.latestPayrollStatus || '-'} />
+                                        <InfoBox label="Latest Gross Salary" value={formatMoney(employeeOverview.salaryStats?.latestGrossSalary || 0)} />
+                                        <InfoBox label="Latest Deductions" value={formatMoney(employeeOverview.salaryStats?.latestDeductionTotal || 0)} />
+                                        <InfoBox label="Latest Allowances" value={formatMoney(employeeOverview.salaryStats?.latestAllowanceTotal || 0)} />
+                                        <InfoBox label="Payroll Period Start" value={formatDate(employeeOverview.salaryStats?.latestPeriodStart)} />
+                                        <InfoBox label="Payroll Period End" value={formatDate(employeeOverview.salaryStats?.latestPeriodEnd)} />
+                                        <InfoBox label="Items Issued (Count)" value={String(employeeOverview.assetStats?.activeIssuedItems || 0)} />
+                                        <InfoBox label="Items Total (Count)" value={String(employeeOverview.assetStats?.totalItems || 0)} />
+                                    </div>
                                 </div>
 
                                 <div className="rounded-lg border p-3">
@@ -386,5 +500,18 @@ const InfoBox = ({ label, value }) => (
         <p className="text-sm font-medium">{value || '-'}</p>
     </div>
 );
+
+const formatMoney = (value) => {
+    const amount = Number(value || 0);
+    if (!Number.isFinite(amount)) return '-';
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount);
+};
+
+const formatDate = (value) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString();
+};
 
 export default EmployeeList;

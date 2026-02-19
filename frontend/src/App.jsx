@@ -25,11 +25,13 @@ import DocumentsPage from './pages/dashboard/DocumentsPage';
 import OrgChartPage from './pages/dashboard/OrgChartPage';
 import PerformancePage from './pages/dashboard/PerformancePage';
 import FeedPage from './pages/dashboard/FeedPage';
+import FeedBrowsePage from './pages/dashboard/FeedBrowsePage';
 import NetworkPage from './pages/dashboard/NetworkPage';
 import SettingsPage from './pages/dashboard/SettingsPage';
 import HelpPage from './pages/dashboard/HelpPage';
 import JobsPage from './pages/dashboard/JobsPage';
 import ChatPage from './pages/dashboard/ChatPage';
+import NotificationsPage from './pages/dashboard/NotificationsPage';
 
 import { useAuthStore } from './store/authStore';
 import AIWidget from './components/shared/AIWidget';
@@ -105,6 +107,7 @@ function App() {
         >
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="help" element={<HelpPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
@@ -122,10 +125,12 @@ function App() {
           <Route path="recruitment" element={<RecruitmentDashboard />} />
           <Route path="org-chart" element={<OrgChartPage />} />
           <Route path="performance" element={<PerformancePage />} />
-          <Route path="feed" element={<FeedPage />} />
+          <Route path="content-upload" element={<FeedPage />} />
+          <Route path="feed" element={<FeedBrowsePage />} />
           <Route path="network" element={<NetworkPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="help" element={<HelpPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
@@ -138,10 +143,12 @@ function App() {
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="leaves" element={<LeavePage />} />
           <Route path="documents" element={<DocumentsPage />} />
-          <Route path="feed" element={<FeedPage />} />
+          <Route path="content-upload" element={<FeedPage />} />
+          <Route path="feed" element={<FeedBrowsePage />} />
           <Route path="network" element={<NetworkPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="help" element={<HelpPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
@@ -152,10 +159,12 @@ function App() {
           <Route path="dashboard" element={<DashboardHome />} />
           <Route path="profile" element={<UserProfile />} />
           <Route path="jobs" element={<JobsPage />} />
-          <Route path="feed" element={<FeedPage />} />
+          <Route path="content-upload" element={<FeedPage />} />
+          <Route path="feed" element={<FeedBrowsePage />} />
           <Route path="network" element={<NetworkPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="help" element={<HelpPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

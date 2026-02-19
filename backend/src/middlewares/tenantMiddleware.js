@@ -1,25 +1,42 @@
-// Middleware to ensure request is scoped to an organization
-const requireTenant = (req, res, next) => {
-    // 1. Check if organizationId is in the token (req.organizationId from authMiddleware)
-    if (req.organizationId) {
-        return next();
-    }
+const EmploymentState = require('../models/EmploymentState');
 
-    // 2. Alternatively, check header 'x-tenant-id' if we allow switching context without re-login (less secure but common)
-    // For this strict architecture, we require the token to be scoped.
-
-    // 3. SuperAdmin bypass?
-    if (req.user && req.user.isSuperAdmin) {
-        // If SuperAdmin, they might need to explicitly set header to target an org, 
-        // or operate in "God Mode".
-        // For now, if targeting a specific org route, they should provide header.
-        if (req.headers['x-tenant-id']) {
-            req.organizationId = req.headers['x-tenant-id'];
+const requireTenant = async (req, res, next) => {
+    try {
+        if (req.organizationId) {
             return next();
         }
-    }
 
-    return res.status(403).json({ message: 'Organization context required. Please switch organization.' });
+        const headerTenantId = String(req.headers['x-tenant-id'] || '').trim();
+        if (!headerTenantId) {
+            return res.status(403).json({ message: 'Organization context required. Please switch organization.' });
+        }
+
+        // SuperAdmin can target any tenant through header context.
+        if (req.user?.isSuperAdmin) {
+            req.organizationId = headerTenantId;
+            return next();
+        }
+
+        // For non-superadmin, verify active membership in target organization.
+        const employment = await EmploymentState.findOne({
+            userId: req.user?.id,
+            organizationId: headerTenantId,
+            status: { $in: ['ACTIVE', 'INVITED', 'SUSPENDED'] },
+        }).populate('roleId', 'name');
+
+        if (!employment) {
+            return res.status(403).json({ message: 'No active access to selected organization.' });
+        }
+
+        req.organizationId = headerTenantId;
+        if (!req.userRole && employment?.roleId?.name) {
+            req.userRole = employment.roleId.name;
+        }
+        return next();
+    } catch (error) {
+        console.error('Tenant middleware error', error);
+        return res.status(500).json({ message: 'Server Error' });
+    }
 };
 
 module.exports = { requireTenant };

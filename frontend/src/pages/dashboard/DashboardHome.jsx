@@ -139,22 +139,24 @@ const DashboardHome = () => {
             return {
                 title: 'Organization request is under review',
                 description: 'SuperAdmin approval pending. HR modules will unlock after approval.',
-                tone: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                tone: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200',
             };
         }
         if (ownerRequestState.state === 'REJECTED') {
             return {
                 title: 'Organization request was rejected',
                 description: ownerRequestState.request?.rejectionReason || 'Please update details and re-apply.',
-                tone: 'border-red-500/30 bg-red-500/10 text-red-200',
+                tone: 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200',
             };
         }
         return null;
     }, [ownerRequestState]);
 
+    const pageContainerClass = 'mx-auto w-full max-w-4xl space-y-6 xl:max-w-6xl 2xl:max-w-7xl';
+
     if (needsOwnerOnboarding) {
         return (
-            <div className="space-y-6">
+            <div className={pageContainerClass}>
                 <div className="rounded-2xl border border-primary/30 bg-primary/10 p-6">
                     <h1 className="text-2xl font-bold">Owner Onboarding</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -196,7 +198,7 @@ const DashboardHome = () => {
                                     <div className="grid gap-1">
                                         <Label>Organization Type</Label>
                                         <select
-                                            className="h-10 rounded-md border bg-background px-3 text-sm"
+                                            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
                                             value={requestForm.organizationType}
                                             onChange={(e) => setRequestForm((s) => ({ ...s, organizationType: e.target.value }))}
                                         >
@@ -217,12 +219,12 @@ const DashboardHome = () => {
                                 <div className="grid gap-1">
                                     <Label>Description</Label>
                                     <textarea
-                                        className="min-h-[90px] rounded-md border bg-background p-2 text-sm"
+                                        className="min-h-[90px] rounded-md border border-border bg-background p-2 text-sm text-foreground placeholder:text-muted-foreground"
                                         value={requestForm.description}
                                         onChange={(e) => setRequestForm((s) => ({ ...s, description: e.target.value }))}
                                     />
                                 </div>
-                                {requestError && <p className="text-sm text-red-400">{requestError}</p>}
+                                {requestError && <p className="text-sm text-red-600 dark:text-red-300">{requestError}</p>}
                                 <Button onClick={submitOrganizationRequest} isLoading={requestSubmitting} disabled={requestSubmitting}>
                                     Submit For Approval
                                 </Button>
@@ -235,27 +237,27 @@ const DashboardHome = () => {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-3xl glass-card p-8 text-white shadow-2xl">
-                <div className="absolute inset-0 z-0 bg-gradient-to-r from-violet-600/50 to-rose-600/50"></div>
+        <div className={pageContainerClass}>
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 text-foreground shadow-sm">
+                <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/40 dark:to-blue-900/30"></div>
                 <div className="relative z-10">
                     <h1 className="mb-2 text-4xl font-extrabold tracking-tight sm:text-5xl">
-                        Welcome, <span className="bg-gradient-to-r from-violet-200 to-rose-200 bg-clip-text text-transparent">{firstName}</span>
+                        Welcome, <span className="bg-gradient-to-r from-blue-700 to-slate-700 bg-clip-text text-transparent dark:from-blue-300 dark:to-slate-200">{firstName}</span>
                     </h1>
-                    <p className="max-w-2xl text-lg text-violet-100">
+                    <p className="max-w-2xl text-lg text-muted-foreground">
                         New account ke liye koi dummy details nahi rakhi gayi hain. Apni details manually profile aur settings se add karein.
                     </p>
                 </div>
-                <div className="absolute -bottom-10 -right-10 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
+                <div className="pointer-events-none absolute -bottom-10 -right-10 h-64 w-64 rounded-full bg-blue-100/70 blur-3xl dark:bg-blue-500/20"></div>
             </div>
 
             <div className="stagger-children grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 {stats.map((stat) => (
-                    <div key={stat.label} className="group relative overflow-hidden rounded-2xl glass-card p-6 transition-all hover:scale-[1.02] hover:shadow-xl">
-                        <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-5 transition-opacity group-hover:opacity-10`}></div>
+                    <div key={stat.label} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 transition-all hover:scale-[1.01] hover:shadow-md">
+                        <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-[0.06] transition-opacity group-hover:opacity-[0.1]`}></div>
                         <div className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <h3 className="text-sm font-medium tracking-tight text-muted-foreground">{stat.label}</h3>
-                            <stat.icon className="h-6 w-6 opacity-80 transition-transform group-hover:scale-110" />
+                            <stat.icon className="h-6 w-6 text-foreground opacity-90 transition-transform group-hover:scale-110" />
                         </div>
                         <div className="pt-2">
                             <div className="text-3xl font-bold text-foreground">{stat.value}</div>
@@ -265,7 +267,7 @@ const DashboardHome = () => {
                 ))}
             </div>
 
-            <div className="rounded-2xl glass-card p-6">
+            <div className="rounded-2xl border border-border bg-card p-6">
                 <h3 className="mb-6 flex items-center gap-2 text-lg font-semibold">
                     <Activity className="h-5 w-5 text-primary" />
                     Recent Activity
@@ -273,9 +275,9 @@ const DashboardHome = () => {
                 <div className="space-y-6">
                     {activities.map((item, index) => (
                         <div key={index} className="group flex items-center gap-4">
-                            <div className={`h-3 w-3 ${item.color} rounded-full ring-4 ring-white/10 transition-all group-hover:ring-white/20`}></div>
+                            <div className={`h-3 w-3 ${item.color} rounded-full ring-4 ring-slate-100 transition-all group-hover:ring-slate-200 dark:ring-slate-700/40 dark:group-hover:ring-slate-600/50`}></div>
                             <div>
-                                <p className="text-sm font-medium">{item.action}</p>
+                                <p className="text-sm font-medium text-foreground">{item.action}</p>
                                 <p className="text-xs text-muted-foreground">{item.time}</p>
                             </div>
                         </div>

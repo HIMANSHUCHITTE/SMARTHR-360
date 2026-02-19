@@ -1,9 +1,10 @@
 import React from 'react';
-import { LayoutDashboard, Settings, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Settings, LifeBuoy, Bell } from 'lucide-react';
 import PanelShell from './PanelShell';
 
 const menuItems = [
     { label: 'Dashboard', path: '/superadmin/dashboard', icon: LayoutDashboard },
+    { label: 'Notifications', path: '/superadmin/notifications', icon: Bell },
     { label: 'Help', path: '/superadmin/help', icon: LifeBuoy },
     { label: 'Settings', path: '/superadmin/settings', icon: Settings },
 ];

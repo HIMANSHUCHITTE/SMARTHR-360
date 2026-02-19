@@ -29,6 +29,15 @@ class NotificationService {
     async getUserNotifications(userId) {
         return Notification.find({ userId }).sort('-createdAt').limit(20).lean();
     }
+
+    async deleteOne(notificationId, userId) {
+        return Notification.findOneAndDelete({ _id: notificationId, userId });
+    }
+
+    async clearAll(userId) {
+        const result = await Notification.deleteMany({ userId });
+        return result.deletedCount || 0;
+    }
 }
 
 module.exports = new NotificationService();

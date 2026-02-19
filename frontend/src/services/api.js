@@ -24,8 +24,12 @@ api.interceptors.request.use(
             config.headers.Authorization = `Bearer ${token}`;
         }
         const organizationId = useAuthStore.getState().organization?.id || useAuthStore.getState().organization?._id;
-        if (organizationId) {
-            config.headers['x-tenant-id'] = organizationId;
+        const cachedOrganizationId = typeof window !== 'undefined'
+            ? String(localStorage.getItem('owner-active-organization-id') || '').trim()
+            : '';
+        const tenantId = organizationId || cachedOrganizationId;
+        if (tenantId) {
+            config.headers['x-tenant-id'] = tenantId;
         }
         return config;
     },

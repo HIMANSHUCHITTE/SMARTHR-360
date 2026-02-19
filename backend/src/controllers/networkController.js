@@ -16,13 +16,43 @@ const sendSafeNotification = async (userId, payload) => {
     }
 };
 
+// @desc    Upload Feed Media (Image/Video)
+// @route   POST /api/network/upload-media
+// @access  Registered User
+exports.uploadFeedMedia = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'Media file is required' });
+        }
+
+        const mime = String(req.file.mimetype || '').toLowerCase();
+        const type = mime.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+        const relativePath = `/uploads/feed/${req.file.filename}`;
+        const mediaUrl = `${req.protocol}://${req.get('host')}${relativePath}`;
+
+        res.status(201).json({
+            type,
+            url: mediaUrl,
+            filename: req.file.filename,
+            size: req.file.size,
+        });
+    } catch (error) {
+        console.error('Network uploadFeedMedia error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 // @desc    Get Feed
 // @route   GET /api/network/feed
 // @access  Registered User
 exports.getFeed = async (req, res) => {
     try {
+        const feedQuery = req.organizationId
+            ? { organizationId: req.organizationId }
+            : { organizationId: null };
+
         const [posts, me] = await Promise.all([
-            Post.find()
+            Post.find(feedQuery)
                 .populate('authorId', authorProjection)
                 .populate('comments.userId', commentAuthorProjection)
                 .sort('-createdAt')
@@ -63,6 +93,7 @@ exports.createPost = async (req, res) => {
 
         const post = await Post.create({
             authorId: req.user._id,
+            organizationId: req.organizationId || null,
             content,
             attachments,
         });

@@ -6,9 +6,15 @@ const postSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        default: null,
+    },
     content: {
         type: String,
-        required: true,
+        default: '',
+        trim: true,
     },
     attachments: [{
         type: {
@@ -40,5 +46,6 @@ const postSchema = new mongoose.Schema({
 
 postSchema.index({ createdAt: -1 });
 postSchema.index({ authorId: 1, createdAt: -1 });
+postSchema.index({ organizationId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Post', postSchema);

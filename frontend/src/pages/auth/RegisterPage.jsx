@@ -224,23 +224,21 @@ const RegisterPage = () => {
         <div className="space-y-5">
             <div className="space-y-1 text-center">
                 <p className="text-xs font-semibold tracking-wide text-primary">{progressLabel}</p>
-                <h1 className="text-2xl font-semibold tracking-tight">Create Account</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-800">Create Account</h1>
+                <p className="text-sm text-slate-500">
                     Complete all steps to activate your account.
                 </p>
-                <div className="pt-1">
-                    <Link to="/">
-                        <Button variant="outline" size="sm">Back to Home</Button>
-                    </Link>
-                </div>
             </div>
 
-            <div className="h-2 w-full rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${step * 25}%` }} />
+            <div className="h-2 w-full rounded-full bg-white/80 shadow-[inset_4px_4px_8px_rgba(168,184,204,0.28),inset_-4px_-4px_8px_rgba(255,255,255,0.85)]">
+                <div className="h-full rounded-full bg-gradient-to-r from-[#f59c2f] to-[#f07a2f] transition-all" style={{ width: `${step * 25}%` }} />
             </div>
 
             {step === 1 && (
-                <form className="grid gap-3" onSubmit={handleSubmit(submitStepOne)}>
+                <form
+                    className="grid gap-3 [&_input]:rounded-xl [&_input]:border-white/70 [&_input]:bg-white/80 [&_input]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] [&_textarea]:rounded-xl [&_textarea]:border-white/70 [&_textarea]:bg-white/80 [&_textarea]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] [&_select]:rounded-xl [&_select]:border-white/70 [&_select]:bg-white/80 [&_select]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]"
+                    onSubmit={handleSubmit(submitStepOne)}
+                >
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                         <div className="grid gap-1">
                             <Label htmlFor="firstName">First Name</Label>
@@ -315,18 +313,18 @@ const RegisterPage = () => {
                         </div>
                     </div>
 
-                    <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+                    <p className="rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700">
                         Note: Password must contain A-Z, a-z, 0-9 and at least one symbol.
                     </p>
 
-                    <Button isLoading={isLoading} disabled={isLoading} className="w-full">
+                    <Button isLoading={isLoading} disabled={isLoading} className="h-12 w-full rounded-full bg-white text-[#e46e22] shadow-[10px_10px_18px_rgba(156,172,193,0.3),-7px_-7px_14px_rgba(255,255,255,0.9)] hover:bg-white">
                         Continue to Verification
                     </Button>
                 </form>
             )}
 
             {step === 2 && (
-                <div className="grid gap-3">
+                <div className="grid gap-3 [&_input]:rounded-xl [&_input]:border-white/70 [&_input]:bg-white/80 [&_input]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]">
                     <div className="grid gap-1">
                         <Label htmlFor="emailOtp">Email OTP (6 digits)</Label>
                         <Input
@@ -349,7 +347,7 @@ const RegisterPage = () => {
                     </div>
 
                     {debugOtp && (
-                        <p className="rounded-md border border-blue-500/30 bg-blue-500/10 p-2 text-xs text-blue-200">
+                        <p className="rounded-xl border border-blue-300 bg-blue-50 p-2 text-xs text-blue-700">
                             Dev OTP: email {debugOtp.emailOtp} | mobile {debugOtp.mobileOtp}
                         </p>
                     )}
@@ -368,7 +366,7 @@ const RegisterPage = () => {
             )}
 
             {step === 3 && (
-                <div className="grid gap-4">
+                <div className="grid gap-4 [&_input]:rounded-xl [&_input]:border-white/70 [&_input]:bg-white/80 [&_input]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] [&_textarea]:rounded-xl [&_textarea]:border-white/70 [&_textarea]:bg-white/80 [&_textarea]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] [&_select]:rounded-xl [&_select]:border-white/70 [&_select]:bg-white/80 [&_select]:shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]">
                     <div className="rounded-lg border p-3">
                         <p className="text-sm font-medium">Select Purpose</p>
                         <p className="text-xs text-muted-foreground">Choose how you want to start.</p>
@@ -460,7 +458,7 @@ const RegisterPage = () => {
 
             {step === 4 && (
                 <div className="space-y-4 text-center">
-                    <p className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-200">
+                    <p className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-700">
                         Registration successful. You can now login.
                     </p>
                     <Button className="w-full" onClick={() => navigate('/auth/login')}>

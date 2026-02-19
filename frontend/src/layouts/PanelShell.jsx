@@ -73,12 +73,12 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
         return '/user/network';
     }, [panel]);
 
-    const settingsPath = useMemo(() => {
-        if (panel === 'OWNER') return '/owner/settings';
-        if (panel === 'SUBADMIN') return '/subadmin/settings';
-        if (panel === 'EMPLOYEE') return '/subadmin/settings';
-        if (panel === 'SUPERADMIN') return '/superadmin/settings';
-        return '/user/settings';
+    const notificationsPath = useMemo(() => {
+        if (panel === 'OWNER') return '/owner/notifications';
+        if (panel === 'SUBADMIN') return '/subadmin/notifications';
+        if (panel === 'EMPLOYEE') return '/subadmin/notifications';
+        if (panel === 'SUPERADMIN') return '/superadmin/notifications';
+        return '/user/notifications';
     }, [panel]);
 
     const chatPath = useMemo(() => {
@@ -89,6 +89,7 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
     }, [panel]);
     const isPanelMainPage = location.pathname.endsWith('/dashboard');
     const showMenuText = isDesktop ? isSidebarOpen : true;
+    const headerLeftOffset = isDesktop ? (isSidebarOpen ? 256 : 64) : 0;
 
     const unreadCount = notifications.filter((item) => !item.isRead).length;
 
@@ -114,7 +115,7 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
     };
 
     return (
-        <div className="relative flex min-h-screen overflow-hidden">
+        <div className={cn('relative flex min-h-screen overflow-hidden', panel === 'OWNER' && 'owner-shell')}>
             <div className="pointer-events-none absolute inset-0 -z-10">
                 <div className="absolute -left-24 -top-16 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
                 <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
@@ -130,7 +131,7 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
 
             <aside
                 className={cn(
-                    'z-50 flex flex-col border-r bg-card/95 backdrop-blur-xl transition-all duration-300',
+                    'frosted-sidebar z-50 flex flex-col border-r bg-card/95 backdrop-blur-xl transition-all duration-300',
                     'fixed inset-y-0 left-0 w-72 -translate-x-full lg:static lg:inset-auto lg:translate-x-0',
                     isSidebarOpen && 'translate-x-0',
                     isDesktop && (isSidebarOpen ? 'lg:w-64' : 'lg:w-16'),
@@ -138,12 +139,16 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
             >
                 <div className={cn('flex h-16 items-center border-b px-4', showMenuText ? 'justify-between' : 'justify-center')}>
                     {showMenuText ? (
-                        <div>
-                            <p className="text-sm font-bold text-primary">{brand}</p>
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{panelName}</p>
+                        <div className="leading-tight">
+                            <p className="text-base font-extrabold tracking-wide text-foreground">{brand}</p>
+                            <p className="mt-1 inline-flex rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                                {panelName}
+                            </p>
                         </div>
                     ) : (
-                        <span className="text-sm font-bold text-primary">{brand.slice(0, 1)}</span>
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-sm font-bold text-primary">
+                            {brand.slice(0, 1)}
+                        </span>
                     )}
                     {!isDesktop && (
                         <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} title="Close menu">
@@ -190,7 +195,10 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
             </aside>
 
             <div className="flex min-w-0 flex-1 flex-col">
-                <header className="sticky top-0 z-50 shrink-0 flex h-16 items-center justify-between border-b bg-card/92 px-3 shadow-sm backdrop-blur-xl sm:px-4 lg:px-6">
+                <header
+                    className="panel-header fixed top-0 right-0 z-50 flex h-16 shrink-0 items-center justify-between border-b bg-card/92 px-3 shadow-sm backdrop-blur-xl sm:px-4 lg:px-6"
+                    style={{ left: `${headerLeftOffset}px` }}
+                >
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         {!isPanelMainPage && (
                             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} title="Go Back">
@@ -275,10 +283,10 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
                                         className="mt-2 w-full"
                                         onClick={() => {
                                             setShowNotifications(false);
-                                            navigate(settingsPath);
+                                            navigate(notificationsPath);
                                         }}
                                     >
-                                        Notification Settings
+                                        Open All Notifications
                                     </Button>
                                 </div>
                             )}
@@ -311,8 +319,10 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
                         </Button>
                     </div>
                 </header>
-                <main className="animate-page-in flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
-                    <Outlet />
+                <main className="panel-main animate-page-in flex-1 overflow-y-auto px-3 pb-3 pt-[4.5rem] sm:px-4 sm:pb-4 sm:pt-[4.75rem] lg:px-6 lg:pb-6 lg:pt-[5rem]">
+                    <div className="mx-auto w-full max-w-[1100px] xl:max-w-[1240px] 2xl:max-w-[1320px]">
+                        <Outlet />
+                    </div>
                 </main>
             </div>
         </div>

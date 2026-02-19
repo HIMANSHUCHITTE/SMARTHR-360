@@ -1,7 +1,11 @@
 const Role = require('../models/Role');
 
+const normalizeRoleName = (value) => String(value || '').trim().toLowerCase();
+
 // Check if user has one of the allowed roles (by name)
 const authorizeRoles = (...allowedRoles) => {
+    const allowed = new Set((allowedRoles || []).map((role) => normalizeRoleName(role)));
+
     return async (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ message: 'Authentication required' });
@@ -21,7 +25,7 @@ const authorizeRoles = (...allowedRoles) => {
             // But for robustness, we should use Role ID or fetch Role by Name.
 
             // If req.userRole is a string (Role Name) from token:
-            if (allowedRoles.includes(req.userRole)) {
+            if (allowed.has(normalizeRoleName(req.userRole))) {
                 return next();
             }
 
@@ -46,17 +50,18 @@ const authorizePermission = (requiredPermission) => {
         try {
             // Resolve Role
             const roleName = req.userRole;
+            const normalizedRoleName = normalizeRoleName(roleName);
 
             // Find Role in DB to get permissions
             // We need to cache this query ideally!
             const role = await Role.findOne({
                 organizationId: req.organizationId,
-                name: roleName
+                name: roleName,
             });
 
             if (!role) {
                 // Fallback for System roles defined in code?
-                if (roleName === 'Owner') return next(); // Owner has *
+                if (normalizedRoleName === 'owner') return next(); // Owner has *
             }
 
             if (role) {

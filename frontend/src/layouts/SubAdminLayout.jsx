@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    LayoutDashboard, Clock, Calendar, FileText, Rss, User, Settings, LifeBuoy, MessageCircle, Users,
+    LayoutDashboard, Clock, Calendar, FileText, Rss, User, Settings, LifeBuoy, MessageCircle, Users, Bell, Upload,
 } from 'lucide-react';
 import PanelShell from './PanelShell';
 
@@ -10,8 +10,10 @@ const menuItems = [
     { label: 'Attendance', path: '/subadmin/attendance', icon: Clock },
     { label: 'Leaves', path: '/subadmin/leaves', icon: Calendar },
     { label: 'Documents', path: '/subadmin/documents', icon: FileText },
+    { label: 'Content Upload', path: '/subadmin/content-upload', icon: Upload },
     { label: 'Feed', path: '/subadmin/feed', icon: Rss },
     { label: 'Network', path: '/subadmin/network', icon: Users },
+    { label: 'Notifications', path: '/subadmin/notifications', icon: Bell },
     { label: 'Chat', path: '/subadmin/chat', icon: MessageCircle },
     { label: 'Help', path: '/subadmin/help', icon: LifeBuoy },
     { label: 'Settings', path: '/subadmin/settings', icon: Settings },

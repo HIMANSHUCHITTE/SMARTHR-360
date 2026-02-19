@@ -96,34 +96,29 @@ const LoginPage = () => {
         <div className="space-y-5">
             <div className="space-y-1 text-center">
                 <p className="text-xs font-semibold tracking-wide text-primary">Step {step} of 3</p>
-                <h1 className="text-2xl font-semibold tracking-tight">Login</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-800">Login</h1>
+                <p className="text-sm text-slate-500">
                     Secure sign-in with OTP verification.
                 </p>
-                <div className="pt-1">
-                    <Link to="/">
-                        <Button variant="outline" size="sm">Back to Home</Button>
-                    </Link>
-                </div>
             </div>
 
-            <div className="h-2 w-full rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(step / 3) * 100}%` }} />
+            <div className="h-2 w-full rounded-full bg-white/80 shadow-[inset_4px_4px_8px_rgba(168,184,204,0.28),inset_-4px_-4px_8px_rgba(255,255,255,0.85)]">
+                <div className="h-full rounded-full bg-gradient-to-r from-[#f59c2f] to-[#f07a2f] transition-all" style={{ width: `${(step / 3) * 100}%` }} />
             </div>
 
             {step === 1 && (
                 <form className="grid gap-3" onSubmit={handleSubmit(startLogin)}>
                     <div className="grid gap-1">
                         <Label htmlFor="identifier">Email / Mobile No.</Label>
-                        <Input id="identifier" placeholder="Email or mobile" {...register('identifier')} />
+                        <Input id="identifier" className="rounded-xl border-white/70 bg-white/80 shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]" placeholder="Email or mobile" {...register('identifier')} />
                         {errors.identifier && <p className="text-xs text-red-500">{errors.identifier.message}</p>}
                     </div>
                     <div className="grid gap-1">
                         <Label htmlFor="password">Password</Label>
-                        <Input id="password" type="password" placeholder="Password" {...register('password')} />
+                        <Input id="password" className="rounded-xl border-white/70 bg-white/80 shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]" type="password" placeholder="Password" {...register('password')} />
                         {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
                     </div>
-                    <Button type="submit" className="w-full" isLoading={isLoading} disabled={isLoading}>
+                    <Button type="submit" className="h-12 w-full rounded-full bg-white text-[#e46e22] shadow-[10px_10px_18px_rgba(156,172,193,0.3),-7px_-7px_14px_rgba(255,255,255,0.9)] hover:bg-white" isLoading={isLoading} disabled={isLoading}>
                         Continue
                     </Button>
                 </form>
@@ -135,6 +130,7 @@ const LoginPage = () => {
                         <Label htmlFor="emailOtp">Email OTP (6 digits)</Label>
                         <Input
                             id="emailOtp"
+                            className="rounded-xl border-white/70 bg-white/80 shadow-[inset_4px_4px_8px_rgba(168,184,204,0.26),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]"
                             value={emailOtp}
                             maxLength={6}
                             onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, ''))}
@@ -143,14 +139,14 @@ const LoginPage = () => {
                     </div>
 
                     {debugOtp && (
-                        <p className="rounded-md border border-blue-500/30 bg-blue-500/10 p-2 text-xs text-blue-200">
+                        <p className="rounded-xl border border-blue-300 bg-blue-50 p-2 text-xs text-blue-700">
                             Dev OTP: {debugOtp.emailOtp}
                         </p>
                     )}
 
                     <div className="grid grid-cols-2 gap-2">
                         <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                        <Button onClick={verifyOtp} isLoading={isLoading} disabled={isLoading || emailOtp.length !== 6}>
+                        <Button className="bg-white text-[#e46e22] hover:bg-white" onClick={verifyOtp} isLoading={isLoading} disabled={isLoading || emailOtp.length !== 6}>
                             Verify OTP
                         </Button>
                     </div>
@@ -159,7 +155,7 @@ const LoginPage = () => {
 
             {step === 3 && (
                 <div className="space-y-3 text-center">
-                    <p className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-200">
+                    <p className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-700">
                         Login successful
                     </p>
                     <p className="text-sm text-muted-foreground">

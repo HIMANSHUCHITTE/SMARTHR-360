@@ -2,6 +2,7 @@ const express = require('express');
 const {
     getFeed,
     createPost,
+    uploadFeedMedia: uploadFeedMediaHandler,
     toggleLikePost,
     toggleDislikePost,
     addComment,
@@ -16,12 +17,14 @@ const {
     rejectConnectionRequest,
 } = require('../controllers/networkController');
 const { protect } = require('../middlewares/authMiddleware');
+const { uploadFeedMedia: uploadFeedMediaMiddleware } = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
 
 router.use(protect);
 
 router.get('/feed', getFeed);
+router.post('/upload-media', uploadFeedMediaMiddleware.single('file'), uploadFeedMediaHandler);
 router.post('/posts', createPost);
 router.post('/posts/:postId/like', toggleLikePost);
 router.post('/posts/:postId/dislike', toggleDislikePost);

@@ -617,7 +617,18 @@ exports.refresh = async (req, res) => {
             return res.status(401).json({ message: 'Invalid refresh token' });
         }
 
-        const accessToken = signAccessToken({ id: user._id });
+        const activeEmployment = await EmploymentState.findOne({
+            userId: user._id,
+            status: 'ACTIVE',
+        }).populate('roleId', 'name').select('organizationId roleId').lean();
+
+        const payload = { id: user._id };
+        if (activeEmployment?.organizationId) {
+            payload.organizationId = activeEmployment.organizationId;
+            payload.role = activeEmployment?.roleId?.name || null;
+        }
+
+        const accessToken = signAccessToken(payload);
         res.json({ accessToken });
     } catch (error) {
         res.status(401).json({ message: 'Token failed' });

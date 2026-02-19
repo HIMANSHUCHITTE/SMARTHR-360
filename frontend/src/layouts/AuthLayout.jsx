@@ -1,51 +1,30 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 
 const AuthLayout = () => {
     return (
-        <div className="container relative grid h-screen items-center lg:max-w-none lg:grid-cols-2 lg:px-0">
-            <div className="relative hidden h-full flex-col overflow-hidden p-10 text-white lg:flex">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#0f697b] via-[#1896ad] to-[#f07d4a]" />
-                <div className="absolute -bottom-10 -left-10 h-56 w-56 rounded-full bg-white/20 blur-3xl" />
-                <div className="absolute -right-10 top-10 h-56 w-56 rounded-full bg-black/20 blur-3xl" />
-                <div className="relative z-20 flex items-center text-lg font-semibold">
-                    <Link to="/" className="flex items-center gap-2">
-                        <div className="rounded-full bg-white/20 p-1">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="h-6 w-6 text-white"
-                            >
-                                <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
-                            </svg>
-                        </div>
-                        SMARTHR-360
-                    </Link>
-                </div>
-                <div className="relative z-20 mt-10 rounded-xl border border-white/20 bg-white/10 p-4 text-sm">
-                    <p className="font-semibold">What you can do here</p>
-                    <ul className="mt-2 space-y-1 text-white/95">
-                        <li>Multi-step secure onboarding</li>
-                        <li>Email and mobile OTP verification</li>
-                        <li>Role-based panel routing</li>
-                    </ul>
-                </div>
-                <div className="relative z-20 mt-auto">
-                    <blockquote className="space-y-2">
-                        <p className="text-lg font-medium">
-                            &ldquo;Identity-first HR stack with secure access and role-based control.&rdquo;
-                        </p>
-                    </blockquote>
-                </div>
+        <div className="relative min-h-screen overflow-hidden bg-[#dbe8f3] text-slate-900">
+            <div className="absolute left-4 top-4 z-30 sm:left-6 sm:top-6">
+                <Link to="/">
+                    <Button
+                        variant="outline"
+                        className="rounded-full border-white/80 bg-white/85 px-4 text-slate-700 shadow-[8px_8px_18px_rgba(133,151,176,0.28),-6px_-6px_14px_rgba(255,255,255,0.72)] backdrop-blur-sm hover:bg-white"
+                    >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Home
+                    </Button>
+                </Link>
             </div>
-            <div className="flex items-center justify-center lg:p-8">
-                <div className="glass-card mx-auto flex w-full flex-col justify-center space-y-6 rounded-2xl p-8 sm:w-[520px]">
-                    <Outlet />
+
+            <div className="container relative z-10 flex min-h-screen items-center py-20">
+                <div className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/70 bg-[#e8eff7] p-6 shadow-[18px_18px_38px_rgba(121,142,170,0.26),-12px_-12px_28px_rgba(255,255,255,0.75)] sm:p-9">
+                    <div className="pointer-events-none absolute right-0 top-0 h-44 w-44 rounded-bl-[84px] bg-[#f2ae49]" />
+                    <div className="pointer-events-none absolute -bottom-6 -left-6 h-44 w-44 rounded-tr-[84px] bg-gradient-to-br from-[#3cc6e5] to-[#4f86e9]" />
+                    <div className="relative z-10">
+                        <Outlet />
+                    </div>
                 </div>
             </div>
         </div>

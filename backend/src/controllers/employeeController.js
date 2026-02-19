@@ -24,6 +24,11 @@ const FALLBACK_ROLE_LEVELS = {
 
 const normalizeId = (value) => (value ? String(value) : null);
 const normalizeRole = (value) => String(value || '').trim().toLowerCase();
+const toNumber = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+};
+const sumObjectValues = (obj) => Object.values(obj || {}).reduce((sum, value) => sum + toNumber(value), 0);
 const normalizeLevel = (roleLike) => {
     const n = Number(roleLike?.level);
     if (Number.isFinite(n)) return n;
@@ -86,6 +91,14 @@ exports.getEmployees = async (req, res) => {
             })
                 .populate('userId', 'email profile')
                 .populate('roleId', 'name')
+                .populate({
+                    path: 'reportsToEmploymentId',
+                    select: 'userId roleId designation department',
+                    populate: [
+                        { path: 'userId', select: 'profile email' },
+                        { path: 'roleId', select: 'name level' },
+                    ],
+                })
                 .sort('-joinedAt')
                 .lean();
             return res.json(employees);
@@ -113,6 +126,14 @@ exports.getEmployees = async (req, res) => {
         })
             .populate('userId', 'email profile')
             .populate('roleId', 'name')
+            .populate({
+                path: 'reportsToEmploymentId',
+                select: 'userId roleId designation department',
+                populate: [
+                    { path: 'userId', select: 'profile email' },
+                    { path: 'roleId', select: 'name level' },
+                ],
+            })
             .sort('-joinedAt')
             .lean();
 
@@ -568,7 +589,14 @@ exports.getEmployeeOverview = async (req, res) => {
         })
             .populate('userId', 'email profile professional')
             .populate('roleId', 'name level')
-            .populate('reportsToEmploymentId', 'designation department')
+            .populate({
+                path: 'reportsToEmploymentId',
+                select: 'designation department userId roleId',
+                populate: [
+                    { path: 'userId', select: 'profile email' },
+                    { path: 'roleId', select: 'name level' },
+                ],
+            })
             .lean();
 
         if (!employment) {
@@ -615,6 +643,27 @@ exports.getEmployeeOverview = async (req, res) => {
             .filter((item) => item.status === 'ISSUED')
             .reduce((sum, item) => sum + (Number(item.estimatedValue || 0) * Number(item.quantity || 1)), 0);
 
+        const returnedValueTotal = assets
+            .filter((item) => item.status === 'RETURNED')
+            .reduce((sum, item) => sum + (Number(item.estimatedValue || 0) * Number(item.quantity || 1)), 0);
+
+        const lostOrDamagedValueTotal = assets
+            .filter((item) => ['LOST', 'DAMAGED'].includes(item.status))
+            .reduce((sum, item) => sum + (Number(item.estimatedValue || 0) * Number(item.quantity || 1)), 0);
+
+        const payroll = payrollRows.map((row) => (typeof row.get === 'function' ? row.get({ plain: true }) : row));
+        const latestPayroll = payroll[0] || null;
+        const totalPaidThisMonth = payroll
+            .filter((row) => row.status === 'PAID')
+            .reduce((sum, row) => sum + toNumber(row.netPayable), 0);
+        const totalPendingThisMonth = payroll
+            .filter((row) => row.status !== 'PAID')
+            .reduce((sum, row) => sum + toNumber(row.netPayable), 0);
+        const latestBasicSalary = latestPayroll ? toNumber(latestPayroll.basicSalary) : 0;
+        const latestAllowanceTotal = latestPayroll ? sumObjectValues(latestPayroll.allowances) : 0;
+        const latestDeductionTotal = latestPayroll ? sumObjectValues(latestPayroll.deductions) : 0;
+        const latestGrossSalary = latestBasicSalary + latestAllowanceTotal;
+
         res.json({
             employment,
             assets,
@@ -622,9 +671,23 @@ exports.getEmployeeOverview = async (req, res) => {
                 totalItems: assets.length,
                 activeIssuedItems: assets.filter((item) => item.status === 'ISSUED').length,
                 issuedValueTotal,
+                returnedValueTotal,
+                lostOrDamagedValueTotal,
             },
             attendanceSummary,
-            payroll: payrollRows,
+            payroll,
+            salaryStats: {
+                latestPayrollStatus: latestPayroll?.status || 'N/A',
+                latestBasicSalary,
+                latestAllowanceTotal,
+                latestDeductionTotal,
+                latestGrossSalary,
+                latestNetPayable: latestPayroll ? toNumber(latestPayroll.netPayable) : 0,
+                totalPaidThisMonth,
+                totalPendingThisMonth,
+                latestPeriodStart: latestPayroll?.periodStart || null,
+                latestPeriodEnd: latestPayroll?.periodEnd || null,
+            },
         });
     } catch (error) {
         console.error('getEmployeeOverview error', error);
