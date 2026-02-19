@@ -642,3 +642,161 @@ html.dark .btn-outline {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-8px); }
 }
+
+/* ── Tablet (≤768px) ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .section {
+        padding: 3rem 0;
+    }
+
+    .hero-section {
+        padding: 4rem 0 3rem;
+    }
+
+    .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .hero-stage {
+        min-height: 260px;
+    }
+
+    .split {
+        grid-template-columns: 1fr;
+        gap: 1.2rem;
+    }
+
+    .feature-grid,
+    .detail-grid,
+    .pricing-grid,
+    .help-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .home-theme-float {
+        right: 12px;
+        top: 12px;
+    }
+
+    .home-theme-toggle-wrap {
+        display: none; /* hidden on mobile — floating button used instead */
+    }
+}
+
+/* ── Phone (≤480px) ──────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .section {
+        padding: 2.2rem 0;
+    }
+
+    .hero-section {
+        padding: 3.2rem 0 2.2rem;
+    }
+
+    /* Hero text */
+    .hero-title {
+        font-size: clamp(1.7rem, 8vw, 2.4rem);
+        line-height: 1.1;
+    }
+
+    .hero-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .hero-badge {
+        font-size: 0.73rem;
+        padding: 0.3rem 0.65rem;
+        text-align: center;
+    }
+
+    /* Hero CTA buttons stack vertically */
+    .hero-cta {
+        flex-direction: column;
+        gap: 0.65rem;
+    }
+
+    .hero-cta .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Hero stage — hide floating panels, show only main card cleanly */
+    .hero-stage {
+        min-height: 200px;
+    }
+
+    .hero-stage-main {
+        position: relative;
+        inset: auto;
+        margin: 0;
+    }
+
+    .hero-stage-float {
+        display: none; /* too small to show floating sub-cards on phone */
+    }
+
+    /* All grids go single column */
+    .feature-grid,
+    .detail-grid,
+    .pricing-grid,
+    .help-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Section headings */
+    .section-head h2 {
+        font-size: 1.45rem;
+    }
+
+    .section-head p {
+        font-size: 0.92rem;
+    }
+
+    /* Floating theme toggle: smaller on phone */
+    .home-theme-float {
+        right: 10px;
+        top: 10px;
+    }
+
+    .home-theme-toggle {
+        min-width: auto;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.82rem;
+    }
+
+    /* About / Help CTA buttons */
+    .about-cta,
+    .help-cta {
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+
+    .about-cta .btn,
+    .help-cta .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Pricing card button */
+    .btn-block {
+        font-size: 0.9rem;
+    }
+
+    /* Score card value smaller on phone */
+    .score-value {
+        font-size: 1.5rem;
+    }
+
+    /* Containers get a bit more breathing room on edges */
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* About card padding */
+    .about-card {
+        padding: 1.1rem;
+    }
+}
+

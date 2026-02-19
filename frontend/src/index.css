@@ -55,7 +55,9 @@
     font-size: 16px;
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     min-height: 100%;
     width: 100%;
   }
@@ -124,22 +126,40 @@ html.dark .glass-card {
   animation: page-in 420ms ease-out both;
 }
 
-.stagger-children > * {
+.stagger-children>* {
   animation: item-in 420ms ease-out both;
 }
 
-.stagger-children > *:nth-child(1) { animation-delay: 40ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 90ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 140ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 190ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 290ms; }
+.stagger-children>*:nth-child(1) {
+  animation-delay: 40ms;
+}
+
+.stagger-children>*:nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.stagger-children>*:nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.stagger-children>*:nth-child(4) {
+  animation-delay: 190ms;
+}
+
+.stagger-children>*:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+.stagger-children>*:nth-child(6) {
+  animation-delay: 290ms;
+}
 
 @keyframes page-in {
   from {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -151,6 +171,7 @@ html.dark .glass-card {
     opacity: 0;
     transform: translateY(10px) scale(0.985);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -162,6 +183,7 @@ html.dark .glass-card {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -200,11 +222,17 @@ html.dark .glass-card {
   color: transparent;
 }
 
+/* ── Site Header (Navbar) ────────────────────────────────────── */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 50;
   border-bottom: 1px solid rgba(113, 126, 255, 0.28);
+  transition: box-shadow 200ms ease;
+}
+
+.site-header--scrolled {
+  box-shadow: 0 4px 24px rgba(36, 58, 146, 0.18);
 }
 
 .site-header-inner {
@@ -217,13 +245,21 @@ html.dark .glass-card {
 
 .site-brand {
   font-weight: 700;
+  font-size: 1.05rem;
   letter-spacing: 0.02em;
+  text-decoration: none;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.site-links {
+/* Desktop nav links */
+.site-links--desktop {
   display: flex;
   align-items: center;
-  gap: 1.2rem;
+  gap: 1.4rem;
+  flex: 1;
+  margin-left: 1.5rem;
 }
 
 .site-link {
@@ -238,6 +274,153 @@ html.dark .glass-card {
   text-shadow: 0 0 14px rgba(90, 75, 255, 0.32);
 }
 
+/* Desktop CTA */
+.site-cta--desktop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Nav buttons */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  white-space: nowrap;
+}
+
+.nav-btn:hover {
+  transform: translateY(-1px);
+}
+
+.nav-btn--ghost {
+  background: transparent;
+  color: hsl(var(--foreground));
+  border: 1px solid transparent;
+}
+
+.nav-btn--ghost:hover {
+  background: rgba(90, 75, 255, 0.08);
+  border-color: rgba(90, 75, 255, 0.2);
+}
+
+.nav-btn--primary {
+  background: linear-gradient(120deg, #5a4bff, #00b7ff);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(90, 75, 255, 0.28);
+}
+
+.nav-btn--primary:hover {
+  box-shadow: 0 10px 24px rgba(90, 75, 255, 0.38);
+}
+
+.nav-btn--full {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  font-size: 0.95rem;
+}
+
+/* Hamburger — hidden on desktop */
+.site-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(113, 126, 255, 0.35);
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: background 160ms ease;
+  flex-shrink: 0;
+}
+
+.site-hamburger:hover {
+  background: rgba(90, 75, 255, 0.1);
+}
+
+/* Mobile dropdown menu */
+.site-mobile-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid rgba(113, 126, 255, 0.22);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
+  animation: menu-drop 180ms ease-out both;
+}
+
+html.dark .site-mobile-menu {
+  background: rgba(16, 20, 40, 0.97);
+}
+
+@keyframes menu-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.site-mobile-link {
+  display: block;
+  padding: 0.65rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  text-decoration: none;
+  border-radius: 0.5rem;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.site-mobile-link:hover {
+  background: rgba(90, 75, 255, 0.08);
+  color: hsl(var(--primary));
+}
+
+.site-mobile-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(113, 126, 255, 0.18);
+}
+
+/* Dark mode navbar overrides */
+html.dark .site-hamburger {
+  background: rgba(21, 28, 52, 0.75);
+  border-color: rgba(110, 129, 235, 0.4);
+}
+
+html.dark .site-brand {
+  color: hsl(var(--foreground));
+}
+
+html.dark .nav-btn--ghost {
+  color: hsl(var(--foreground));
+}
+
+html.dark .nav-btn--ghost:hover {
+  background: rgba(109, 128, 255, 0.15);
+  border-color: rgba(109, 128, 255, 0.35);
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
 .site-footer {
   border-top: 1px solid rgba(113, 126, 255, 0.24);
   padding: 1.2rem 0;
@@ -248,4 +431,43 @@ html.dark .glass-card {
   margin: 0;
   color: hsl(var(--muted-foreground));
   font-size: 0.85rem;
+}
+
+/* ── Global phone fixes (≤480px) ─────────────────────────────── */
+@media (max-width: 480px) {
+  * {
+    font-size: 15px;
+  }
+
+  .site-footer {
+    padding: 0.9rem 0;
+  }
+}
+
+/* ── Navbar: hide desktop items on mobile ─────────────────────── */
+@media (max-width: 768px) {
+
+  .site-links--desktop,
+  .site-cta--desktop {
+    display: none;
+  }
+
+  .site-hamburger {
+    display: flex;
+  }
+
+  .site-header-inner {
+    height: 3.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-brand {
+    font-size: 0.92rem;
+  }
+
+  .site-header-inner {
+    height: 3.4rem;
+    gap: 0.5rem;
+  }
 }
