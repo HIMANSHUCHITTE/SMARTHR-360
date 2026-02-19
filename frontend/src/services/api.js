@@ -23,12 +23,9 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        // Attach Tenant Context if available
-        const organizationId = useAuthStore.getState().organization?.id;
+        const organizationId = useAuthStore.getState().organization?.id || useAuthStore.getState().organization?._id;
         if (organizationId) {
-            // Ideally specific header or just rely on backend resolving it from token if scoped.
-            // But if we have switching logic, we might need a header if token isn't scoped yet.
-            // Backend `RequireTenant` checks token first.
+            config.headers['x-tenant-id'] = organizationId;
         }
         return config;
     },

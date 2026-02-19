@@ -87,7 +87,7 @@ exports.getOrganizationChart = async (req, res) => {
             status: { $in: VIEWABLE_STATUSES },
         })
             .populate('userId', 'profile email')
-            .populate('roleId', 'name')
+            .populate('roleId', 'name level')
             .sort('department designation');
 
         let scopedRows = rows;
@@ -112,15 +112,32 @@ exports.getOrganizationChart = async (req, res) => {
             name: `${row.userId?.profile?.firstName || ''} ${row.userId?.profile?.surname || row.userId?.profile?.lastName || ''}`.trim(),
             email: row.userId?.email,
             role: row.roleId?.name || '',
+            roleLevel: row.roleId?.level || 999,
             designation: row.designation || '',
             department: row.department || 'General',
             status: row.status,
+            reportsToEmploymentId: row.reportsToEmploymentId || null,
         }));
+
+        const nodeIds = new Set(nodes.map((node) => String(node.employmentId)));
+        const edges = nodes
+            .filter((node) => node.reportsToEmploymentId && nodeIds.has(String(node.reportsToEmploymentId)))
+            .map((node) => ({
+                from: String(node.reportsToEmploymentId),
+                to: String(node.employmentId),
+            }));
+
+        const roots = nodes
+            .filter((node) => !node.reportsToEmploymentId || !nodeIds.has(String(node.reportsToEmploymentId)))
+            .sort((a, b) => Number(a.roleLevel) - Number(b.roleLevel))
+            .map((node) => String(node.employmentId));
 
         res.json({
             generatedAt: new Date(),
             totalNodes: nodes.length,
             nodes,
+            edges,
+            roots,
         });
     } catch (error) {
         console.error('Owner getOrganizationChart error', error);

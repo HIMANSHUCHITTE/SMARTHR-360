@@ -107,6 +107,16 @@ const userSchema = new mongoose.Schema({
         passwordChangedAt: { type: Date },
         refreshTokenVersion: { type: Number, default: 0 }, // For invalidation
     },
+    social: {
+        followingUserIds: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        }],
+        followerUserIds: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        }],
+    },
 }, {
     timestamps: true,
 });

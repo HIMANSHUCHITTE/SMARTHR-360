@@ -1,119 +1,231 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import api from '../../services/api';
-import { Plus, Search, UserPlus, X, Loader2 } from 'lucide-react';
+import { Search, UserPlus, X, Loader2, BrainCircuit, Eye, Package2 } from 'lucide-react';
 
 const EmployeeList = () => {
     const [employees, setEmployees] = useState([]);
+    const [roles, setRoles] = useState([]);
+    const [eligibleUsers, setEligibleUsers] = useState([]);
+    const [eligibleQuery, setEligibleQuery] = useState('');
+    const [loadingEligible, setLoadingEligible] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
+    const [ratingBusyId, setRatingBusyId] = useState('');
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+    const [overviewLoading, setOverviewLoading] = useState(false);
+    const [employeeOverview, setEmployeeOverview] = useState(null);
+    const [itemForm, setItemForm] = useState({ itemName: '', category: '', specs: '', estimatedValue: '', quantity: 1, notes: '' });
+
     const [formData, setFormData] = useState({
-        email: '',
-        firstName: '',
-        lastName: '',
+        userId: '',
         roleName: 'Employee',
         designation: '',
-        department: ''
+        department: '',
     });
 
     useEffect(() => {
-        fetchEmployees();
+        fetchMasterData();
     }, []);
 
-    const fetchEmployees = async () => {
+    useEffect(() => {
+        if (!isAdding) return;
+        loadEligibleUsers(eligibleQuery);
+    }, [eligibleQuery, isAdding]);
+
+    const fetchMasterData = async () => {
+        setLoading(true);
         try {
-            const { data } = await api.get('/organization/employees');
-            setEmployees(data);
+            const [employeeResp, roleResp] = await Promise.all([
+                api.get('/organization/employees'),
+                api.get('/roles'),
+            ]);
+            setEmployees(Array.isArray(employeeResp.data) ? employeeResp.data : []);
+            const roleItems = (Array.isArray(roleResp.data) ? roleResp.data : [])
+                .filter((role) => !['owner', 'admin', 'superadmin'].includes(String(role.name || '').toLowerCase()));
+            setRoles(roleItems);
+
+            const defaultRole = roleItems.find((r) => String(r.name || '').toLowerCase() === 'employee') || roleItems[0];
+            if (defaultRole?.name) {
+                setFormData((prev) => ({ ...prev, roleName: defaultRole.name }));
+            }
         } catch (error) {
-            console.error('Failed to fetch employees:', error);
+            console.error('Failed to fetch employees/roles:', error);
         } finally {
             setLoading(false);
         }
     };
 
+    const loadEligibleUsers = async (q = '') => {
+        setLoadingEligible(true);
+        try {
+            const { data } = await api.get(`/organization/employees/eligible-users?q=${encodeURIComponent(q)}`);
+            setEligibleUsers(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Failed to load eligible users', error);
+        } finally {
+            setLoadingEligible(false);
+        }
+    };
+
     const handleAddEmployee = async (e) => {
         e.preventDefault();
+        if (!formData.userId) {
+            alert('Please select a registered user to hire');
+            return;
+        }
+
         try {
-            const { data } = await api.post('/organization/employees', formData);
-            setEmployees([data.employment, ...employees]); // Optimistic update or use returned data structure
+            await api.post('/organization/employees', formData);
             setIsAdding(false);
-            setFormData({ email: '', firstName: '', lastName: '', roleName: 'Employee', designation: '', department: '' });
-            alert(`Employee invited successfully! Temporary password sent to ${formData.email} (Mock)`);
-            fetchEmployees(); // Refresh to get full population
+            setFormData((prev) => ({ ...prev, userId: '', designation: '', department: '' }));
+            await fetchMasterData();
         } catch (error) {
             console.error(error);
             alert(error.response?.data?.message || 'Failed to add employee');
         }
     };
 
+    const runAiResumeRating = async (emp) => {
+        setRatingBusyId(emp._id);
+        try {
+            await api.post(`/organization/employees/${emp._id}/ai-resume-rating`, {
+                jobDescription: `${emp.designation || ''} ${emp.roleId?.name || ''}`.trim(),
+            });
+            await fetchMasterData();
+            if (String(selectedEmployeeId) === String(emp._id)) {
+                await openOverview(emp._id);
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to run AI resume rating');
+        } finally {
+            setRatingBusyId('');
+        }
+    };
+
+    const openOverview = async (employmentId) => {
+        setSelectedEmployeeId(employmentId);
+        setOverviewLoading(true);
+        setEmployeeOverview(null);
+        try {
+            const { data } = await api.get(`/organization/employees/${employmentId}/overview`);
+            setEmployeeOverview(data || null);
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to load employee overview');
+        } finally {
+            setOverviewLoading(false);
+        }
+    };
+
+    const closeOverview = () => {
+        setSelectedEmployeeId('');
+        setEmployeeOverview(null);
+        setItemForm({ itemName: '', category: '', specs: '', estimatedValue: '', quantity: 1, notes: '' });
+    };
+
+    const addItemToEmployee = async () => {
+        if (!selectedEmployeeId) return;
+        if (!String(itemForm.itemName || '').trim()) {
+            alert('Item name is required');
+            return;
+        }
+        try {
+            await api.post(`/organization/employees/${selectedEmployeeId}/items`, {
+                ...itemForm,
+                estimatedValue: Number(itemForm.estimatedValue || 0),
+                quantity: Math.max(1, Number(itemForm.quantity || 1)),
+            });
+            setItemForm({ itemName: '', category: '', specs: '', estimatedValue: '', quantity: 1, notes: '' });
+            await openOverview(selectedEmployeeId);
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to add item');
+        }
+    };
+
+    const selectedUser = useMemo(
+        () => eligibleUsers.find((user) => String(user._id) === String(formData.userId)) || null,
+        [eligibleUsers, formData.userId]
+    );
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-                    <p className="text-muted-foreground">Manage your team members and their roles.</p>
+                    <p className="text-muted-foreground">Hire only existing registered users and open employee overview popup for full details.</p>
                 </div>
-                <Button onClick={() => setIsAdding(!isAdding)}>
+                <Button onClick={() => setIsAdding(!isAdding)} className="ring-2 ring-primary/30">
                     {isAdding ? <X className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                    {isAdding ? 'Cancel' : 'Add Employee'}
+                    {isAdding ? 'Cancel' : 'Hire User'}
                 </Button>
             </div>
 
             {isAdding && (
                 <div className="glass-card p-6 rounded-xl border border-primary/20 bg-primary/5">
-                    <h3 className="font-semibold mb-4">Invite New Employee</h3>
+                    <h3 className="font-semibold mb-4">Hire Existing User</h3>
                     <form onSubmit={handleAddEmployee} className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>First Name</Label>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Search Registered Users</Label>
                             <Input
-                                value={formData.firstName}
-                                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                                required
+                                value={eligibleQuery}
+                                onChange={(e) => setEligibleQuery(e.target.value)}
+                                placeholder="Search by name or email"
                             />
+                            <div className="max-h-56 overflow-auto rounded-md border bg-background/80">
+                                {loadingEligible ? (
+                                    <div className="p-3 text-sm text-muted-foreground">Loading users...</div>
+                                ) : eligibleUsers.length === 0 ? (
+                                    <div className="p-3 text-sm text-muted-foreground">No eligible users found.</div>
+                                ) : (
+                                    eligibleUsers.map((user) => {
+                                        const selected = String(formData.userId) === String(user._id);
+                                        const displayName = `${user.profile?.firstName || ''} ${user.profile?.surname || user.profile?.lastName || ''}`.trim();
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={user._id}
+                                                onClick={() => setFormData((prev) => ({ ...prev, userId: user._id }))}
+                                                className={`w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/40 ${selected ? 'bg-primary/10' : ''}`}
+                                            >
+                                                <p className="font-medium">{displayName || user.email}</p>
+                                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                                            </button>
+                                        );
+                                    })
+                                )}
+                            </div>
+                            {selectedUser && (
+                                <p className="text-xs text-emerald-600">
+                                    Selected: {selectedUser.profile?.firstName} {selectedUser.profile?.surname || selectedUser.profile?.lastName} ({selectedUser.email})
+                                </p>
+                            )}
                         </div>
+
                         <div className="space-y-2">
-                            <Label>Last Name</Label>
-                            <Input
-                                value={formData.lastName}
-                                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Email Address</Label>
-                            <Input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Role (e.g. Admin, Manager, Employee)</Label>
-                            <Input
+                            <Label>Role</Label>
+                            <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                 value={formData.roleName}
                                 onChange={(e) => setFormData({ ...formData, roleName: e.target.value })}
                                 required
-                            />
+                            >
+                                {roles.map((role) => (
+                                    <option key={role._id} value={role.name}>{role.name} (L{role.level || '-'})</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="space-y-2">
                             <Label>Designation</Label>
-                            <Input
-                                value={formData.designation}
-                                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                            />
+                            <Input value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} />
                         </div>
                         <div className="space-y-2">
                             <Label>Department</Label>
-                            <Input
-                                value={formData.department}
-                                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                            />
+                            <Input value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
                         </div>
                         <div className="col-span-2 flex justify-end mt-2">
-                            <Button type="submit">Send Invitation</Button>
+                            <Button type="submit" className="ring-2 ring-primary/30">Hire Into Organization</Button>
                         </div>
                     </form>
                 </div>
@@ -131,11 +243,13 @@ const EmployeeList = () => {
                     </div>
                 ) : (
                     <div className="divide-y">
-                        <div className="grid grid-cols-5 gap-4 p-4 font-medium text-sm text-muted-foreground bg-muted/20">
+                        <div className="grid grid-cols-8 gap-4 p-4 font-medium text-sm text-muted-foreground bg-muted/20">
                             <div className="col-span-2">Name</div>
                             <div>Designation</div>
                             <div>Role</div>
                             <div>Status</div>
+                            <div>AI Resume</div>
+                            <div className="col-span-2">Actions</div>
                         </div>
 
                         {employees.length === 0 ? (
@@ -144,11 +258,11 @@ const EmployeeList = () => {
                                     <UserPlus className="h-6 w-6 opacity-50" />
                                 </div>
                                 <h3 className="text-lg font-medium text-foreground">No employees found</h3>
-                                <p>Get started by inviting your first team member.</p>
+                                <p>Hire from existing registered users.</p>
                             </div>
                         ) : (
-                            employees.map(emp => (
-                                <div key={emp._id} className="p-4 grid grid-cols-5 gap-4 text-sm items-center hover:bg-muted/50 transition-colors">
+                            employees.map((emp) => (
+                                <div key={emp._id} className="p-4 grid grid-cols-8 gap-4 text-sm items-center hover:bg-muted/50 transition-colors">
                                     <div className="col-span-2 flex items-center gap-3">
                                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-medium text-xs">
                                             {emp.userId?.profile?.firstName?.[0]}{emp.userId?.profile?.lastName?.[0]}
@@ -165,12 +279,32 @@ const EmployeeList = () => {
                                         </span>
                                     </div>
                                     <div>
-                                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${emp.status === 'ACTIVE'
-                                                ? 'bg-green-50 text-green-700 ring-green-600/20'
-                                                : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
-                                            }`}>
+                                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${emp.status === 'ACTIVE' ? 'bg-green-50 text-green-700 ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20'}`}>
                                             {emp.status}
                                         </span>
+                                    </div>
+                                    <div>
+                                        <span className="font-semibold">{emp.aiResumeRating?.score || 0}</span>
+                                    </div>
+                                    <div className="col-span-2 flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="ring-1 ring-primary/30"
+                                            disabled={Boolean(ratingBusyId)}
+                                            isLoading={ratingBusyId === emp._id}
+                                            onClick={() => runAiResumeRating(emp)}
+                                        >
+                                            <BrainCircuit className="mr-1 h-3.5 w-3.5" /> AI Rate
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="ring-1 ring-primary/30"
+                                            onClick={() => openOverview(emp._id)}
+                                        >
+                                            <Eye className="mr-1 h-3.5 w-3.5" /> Overview
+                                        </Button>
                                     </div>
                                 </div>
                             ))
@@ -178,8 +312,79 @@ const EmployeeList = () => {
                     </div>
                 )}
             </div>
+
+            {selectedEmployeeId && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-3">
+                    <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-xl border bg-white p-5 text-slate-900 shadow-2xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-xl font-semibold">Employee Overview</h3>
+                            <Button variant="outline" onClick={closeOverview}>Close</Button>
+                        </div>
+
+                        {overviewLoading || !employeeOverview ? (
+                            <div className="flex justify-center p-8"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
+                        ) : (
+                            <div className="space-y-5">
+                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                                    <InfoBox label="Name" value={`${employeeOverview.employment?.userId?.profile?.firstName || ''} ${employeeOverview.employment?.userId?.profile?.surname || employeeOverview.employment?.userId?.profile?.lastName || ''}`.trim()} />
+                                    <InfoBox label="Email" value={employeeOverview.employment?.userId?.email || '-'} />
+                                    <InfoBox label="Role" value={employeeOverview.employment?.roleId?.name || '-'} />
+                                    <InfoBox label="Designation" value={employeeOverview.employment?.designation || '-'} />
+                                    <InfoBox label="Department" value={employeeOverview.employment?.department || '-'} />
+                                    <InfoBox label="AI Resume Score" value={String(employeeOverview.employment?.aiResumeRating?.score || 0)} />
+                                    <InfoBox label="Attendance (Present)" value={String(employeeOverview.attendanceSummary?.PRESENT || 0)} />
+                                    <InfoBox label="Issued Value Total" value={String(employeeOverview.assetStats?.issuedValueTotal || 0)} />
+                                </div>
+
+                                <div className="rounded-lg border p-3">
+                                    <h4 className="mb-2 font-semibold flex items-center gap-2"><Package2 className="h-4 w-4" /> Add Issued Item</h4>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                        <Input placeholder="Item name" value={itemForm.itemName} onChange={(e) => setItemForm((s) => ({ ...s, itemName: e.target.value }))} />
+                                        <Input placeholder="Category" value={itemForm.category} onChange={(e) => setItemForm((s) => ({ ...s, category: e.target.value }))} />
+                                        <Input placeholder="Specs" value={itemForm.specs} onChange={(e) => setItemForm((s) => ({ ...s, specs: e.target.value }))} />
+                                        <Input placeholder="Estimated value" type="number" value={itemForm.estimatedValue} onChange={(e) => setItemForm((s) => ({ ...s, estimatedValue: e.target.value }))} />
+                                        <Input placeholder="Quantity" type="number" min="1" value={itemForm.quantity} onChange={(e) => setItemForm((s) => ({ ...s, quantity: e.target.value }))} />
+                                        <Input placeholder="Notes" value={itemForm.notes} onChange={(e) => setItemForm((s) => ({ ...s, notes: e.target.value }))} />
+                                    </div>
+                                    <div className="mt-2 flex justify-end">
+                                        <Button onClick={addItemToEmployee} className="ring-2 ring-primary/30">Add Item</Button>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border p-3">
+                                    <h4 className="mb-2 font-semibold">Issued/Mapped Items</h4>
+                                    {!Array.isArray(employeeOverview.assets) || employeeOverview.assets.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">No items assigned.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {employeeOverview.assets.map((item) => (
+                                                <div key={item._id} className="rounded-md border bg-slate-50 p-3 text-sm">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-semibold">{item.itemName}</p>
+                                                        <span className="rounded-full border px-2 py-0.5 text-xs">{item.status}</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600">Category: {item.category || '-'} | Qty: {item.quantity}</p>
+                                                    <p className="text-xs text-slate-600">Specs: {item.specs || '-'}</p>
+                                                    <p className="text-xs text-slate-600">Estimated Value: {item.estimatedValue || 0}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
+const InfoBox = ({ label, value }) => (
+    <div className="rounded-md border bg-slate-50 px-3 py-2">
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-sm font-medium">{value || '-'}</p>
+    </div>
+);
 
 export default EmployeeList;

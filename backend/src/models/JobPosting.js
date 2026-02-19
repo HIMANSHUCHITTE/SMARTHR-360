@@ -33,6 +33,8 @@ const jobPostingSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+jobPostingSchema.index({ organizationId: 1, status: 1, createdAt: -1 });
+
 jobPostingSchema.plugin(attachStructuredMirror('JobPosting'));
 
 module.exports = mongoose.model('JobPosting', jobPostingSchema);

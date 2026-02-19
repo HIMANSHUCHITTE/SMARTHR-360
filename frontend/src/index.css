@@ -62,6 +62,10 @@
     width: 100%;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     margin: 0;
     color: hsl(var(--foreground));
@@ -72,6 +76,7 @@
       linear-gradient(180deg, #f8f9ff 0%, #eef2ff 100%);
     font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
   }
 
   a {
@@ -112,7 +117,7 @@ html.dark body {
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(123, 109, 255, 0.24);
   box-shadow: 0 10px 30px rgba(47, 64, 155, 0.14);
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1), border-color 260ms ease, background-color 220ms ease;
   animation: card-in 360ms ease-out both;
 }
 
@@ -191,7 +196,7 @@ html.dark .glass-card {
 }
 
 .glass-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.002);
   border-color: rgba(0, 199, 255, 0.45);
   box-shadow: 0 22px 48px rgba(39, 72, 177, 0.2);
 }
@@ -213,6 +218,39 @@ html.dark .glass-card {
 
 .interactive-card:hover::before {
   opacity: 1;
+}
+
+.nav-pill {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(90, 75, 255, 0.08), rgba(0, 183, 255, 0.08));
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.nav-pill:hover::after {
+  opacity: 1;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(130, 140, 200, 0.12);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(90, 75, 255, 0.5), rgba(0, 183, 255, 0.45));
+  border-radius: 999px;
 }
 
 .text-gradient {

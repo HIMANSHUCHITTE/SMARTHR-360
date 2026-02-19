@@ -32,4 +32,6 @@ const documentSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+documentSchema.index({ organizationId: 1, userId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Document', documentSchema);

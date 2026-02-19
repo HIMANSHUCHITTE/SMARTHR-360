@@ -1,5 +1,14 @@
 const express = require('express');
-const { getEmployees, addEmployee, updateEmployee, terminateEmployee } = require('../controllers/employeeController');
+const {
+    getEmployees,
+    getEligibleUsers,
+    addEmployee,
+    updateEmployee,
+    terminateEmployee,
+    rateEmployeeResume,
+    getEmployeeOverview,
+    addEmployeeItem,
+} = require('../controllers/employeeController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireTenant } = require('../middlewares/tenantMiddleware');
 const { authorizeRoles } = require('../middlewares/rbacMiddleware');
@@ -12,8 +21,12 @@ router.use(requireTenant);
 
 // Any authenticated org member can list employees, but data is hierarchy-scoped in controller
 router.get('/', getEmployees);
+router.get('/eligible-users', authorizeRoles('Owner'), getEligibleUsers);
 router.post('/', authorizeRoles('Owner'), addEmployee);
 router.patch('/:id', authorizeRoles('Owner'), updateEmployee);
 router.patch('/:id/terminate', authorizeRoles('Owner'), terminateEmployee);
+router.post('/:id/ai-resume-rating', authorizeRoles('Owner'), rateEmployeeResume);
+router.get('/:id/overview', authorizeRoles('Owner'), getEmployeeOverview);
+router.post('/:id/items', authorizeRoles('Owner'), addEmployeeItem);
 
 module.exports = router;

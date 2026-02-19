@@ -62,6 +62,16 @@ const authorizePermission = (requiredPermission) => {
             if (role) {
                 if (role.permissions.includes('*')) return next();
                 if (role.permissions.includes(requiredPermission)) return next();
+
+                const [moduleNameRaw, actionRaw] = String(requiredPermission || '').split(':');
+                const moduleName = String(moduleNameRaw || '').trim().toLowerCase();
+                const action = String(actionRaw || '').trim().toLowerCase();
+                if (moduleName && action && Array.isArray(role.access)) {
+                    const accessRow = role.access.find((item) => String(item.module || '').toLowerCase() === moduleName);
+                    if (accessRow && Boolean(accessRow[action])) {
+                        return next();
+                    }
+                }
             }
 
             return res.status(403).json({ message: `Access denied: Missing permission ${requiredPermission}` });

@@ -84,7 +84,7 @@ const normalizeHierarchyConfig = (raw) => ({
 });
 
 const OrganizationSettings = () => {
-    const { organization, setOrganization } = useAuthStore();
+    const { organization, setOrganization, setToken } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
     const [message, setMessage] = useState('');
@@ -94,6 +94,8 @@ const OrganizationSettings = () => {
     const [paymentTarget, setPaymentTarget] = useState('PRO');
     const [billingCycle, setBillingCycle] = useState('MONTHLY');
     const [history, setHistory] = useState([]);
+    const [organizationContexts, setOrganizationContexts] = useState([]);
+    const [switchingOrganizationId, setSwitchingOrganizationId] = useState('');
     const [hierarchyConfig, setHierarchyConfig] = useState(DEFAULT_HIERARCHY_CONFIG);
     const [paymentForm, setPaymentForm] = useState({
         cardHolder: '',
@@ -107,14 +109,16 @@ const OrganizationSettings = () => {
 
     const fetchOrgSettings = useCallback(async () => {
         try {
-            const [{ data: orgData }, { data: pricingData }, { data: historyData }] = await Promise.all([
+            const [{ data: orgData }, { data: pricingData }, { data: historyData }, { data: orgListData }] = await Promise.all([
                 api.get('/organization'),
                 api.get('/payments/pricing'),
                 api.get('/payments/history'),
+                api.get('/auth/organizations'),
             ]);
             setOrganization(orgData);
             setPricing(pricingData);
             setHistory(historyData || []);
+            setOrganizationContexts(Array.isArray(orgListData?.organizations) ? orgListData.organizations : []);
             setValue('name', orgData.name);
             setValue('branding.primaryColor', orgData.settings?.branding?.primaryColor || '#000000');
             setHierarchyConfig(normalizeHierarchyConfig(orgData.hierarchyConfig));
@@ -183,6 +187,25 @@ const OrganizationSettings = () => {
 
     const currentPlanId = useMemo(() => organization?.subscription?.planId || 'FREE', [organization]);
 
+    const switchOrganization = async (organizationId) => {
+        setSwitchingOrganizationId(organizationId);
+        setMessage('');
+        try {
+            const { data: switchData } = await api.post('/auth/switch-organization', { organizationId });
+            if (switchData?.accessToken) {
+                setToken(switchData.accessToken);
+            }
+            const { data: orgData } = await api.get('/organization');
+            setOrganization(orgData);
+            await fetchOrgSettings();
+            setMessage('Organization context switched successfully.');
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to switch organization');
+        } finally {
+            setSwitchingOrganizationId('');
+        }
+    };
+
     const getPlanPrice = (planId) => {
         if (!pricing?.plans?.[planId]) return '$0';
         const amount = pricing.plans[planId][billingCycle] || 0;
@@ -212,6 +235,35 @@ const OrganizationSettings = () => {
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Organization Settings</h1>
                 <p className="text-muted-foreground">Manage company profile and active subscription with checkout.</p>
+            </div>
+
+            <div className="glass-card interactive-card p-6">
+                <h3 className="font-semibold text-lg mb-1">My Organizations</h3>
+                <p className="text-sm text-muted-foreground mb-4">Select organization context. Billing and employee controls are per organization.</p>
+                {organizationContexts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No approved organizations found for your account.</p>
+                ) : (
+                    <div className="grid gap-3 md:grid-cols-2">
+                        {organizationContexts.map((orgItem) => {
+                            const isActive = String(orgItem.organizationId) === String(organization?.id || organization?._id);
+                            return (
+                                <div key={orgItem.organizationId} className={`rounded-lg border p-3 ${isActive ? 'border-primary bg-primary/5' : 'bg-background/70'}`}>
+                                    <p className="font-semibold">{orgItem.organizationName}</p>
+                                    <p className="text-xs text-muted-foreground">Role: {orgItem.role || 'N/A'} | Status: {orgItem.platformStatus || 'N/A'}</p>
+                                    <Button
+                                        className="mt-3 w-full"
+                                        variant={isActive ? 'outline' : 'default'}
+                                        disabled={isActive || Boolean(switchingOrganizationId)}
+                                        isLoading={switchingOrganizationId === orgItem.organizationId}
+                                        onClick={() => switchOrganization(orgItem.organizationId)}
+                                    >
+                                        {isActive ? 'Current Organization' : 'Enter Organization'}
+                                    </Button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

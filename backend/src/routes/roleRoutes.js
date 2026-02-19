@@ -1,5 +1,11 @@
 const express = require('express');
-const { getRoles, createRole, deleteRole } = require('../controllers/roleController');
+const {
+    getPermissionCatalog,
+    getRoles,
+    createRole,
+    updateRole,
+    deleteRole,
+} = require('../controllers/roleController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireTenant } = require('../middlewares/tenantMiddleware');
 const { authorizeRoles } = require('../middlewares/rbacMiddleware');
@@ -10,11 +16,14 @@ router.use(protect);
 router.use(requireTenant);
 router.use(authorizeRoles('Owner'));
 
+router.get('/permission-catalog', getPermissionCatalog);
+
 router.route('/')
     .get(getRoles)
     .post(createRole);
 
 router.route('/:id')
+    .patch(updateRole)
     .delete(deleteRole);
 
 module.exports = router;

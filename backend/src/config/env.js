@@ -14,7 +14,9 @@ const envSchema = joi.object({
     PG_DATABASE: joi.string().required(),
     PG_PASSWORD: joi.string().required(),
     PG_PORT: joi.number().default(5432),
-    STRUCTURED_SYNC_ON_BOOT: joi.boolean().default(true),
+    PG_SYNC_ON_BOOT: joi.boolean().default(false),
+    PG_SYNC_ALTER_ON_BOOT: joi.boolean().default(false),
+    STRUCTURED_SYNC_ON_BOOT: joi.boolean().default(false),
 
     JWT_SECRET: joi.string().required(),
     JWT_EXPIRES_IN: joi.string().default('15m'),
@@ -41,6 +43,8 @@ module.exports = {
         password: envVars.PG_PASSWORD,
         port: envVars.PG_PORT,
     },
+    pgSyncOnBoot: envVars.PG_SYNC_ON_BOOT,
+    pgSyncAlterOnBoot: envVars.PG_SYNC_ALTER_ON_BOOT,
     structuredSyncOnBoot: envVars.STRUCTURED_SYNC_ON_BOOT,
     jwt: {
         secret: envVars.JWT_SECRET,

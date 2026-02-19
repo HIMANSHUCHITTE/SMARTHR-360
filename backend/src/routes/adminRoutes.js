@@ -10,6 +10,11 @@ const {
     getAnnouncements,
     createAnnouncement,
     getSystemHealth,
+    getOrganizationRequests,
+    getOrganizationRequestById,
+    updateOrganizationRequest,
+    approveOrganizationRequest,
+    rejectOrganizationRequest,
 } = require('../controllers/adminController');
 const { protect } = require('../middlewares/authMiddleware');
 
@@ -28,6 +33,11 @@ router.use(protect);
 router.use(requireSuperAdmin);
 
 router.get('/organizations', getAllOrganizations);
+router.get('/organization-requests', getOrganizationRequests);
+router.get('/organization-requests/:id', getOrganizationRequestById);
+router.patch('/organization-requests/:id', updateOrganizationRequest);
+router.post('/organization-requests/:id/approve', approveOrganizationRequest);
+router.post('/organization-requests/:id/reject', rejectOrganizationRequest);
 router.patch('/organizations/:id/status', updateOrganizationStatus);
 router.patch('/organizations/:id/plan', updateOrganizationPlan);
 router.get('/analytics', getAnalytics);

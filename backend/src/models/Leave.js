@@ -43,6 +43,9 @@ const leaveSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+leaveSchema.index({ organizationId: 1, userId: 1, createdAt: -1 });
+leaveSchema.index({ organizationId: 1, status: 1, createdAt: -1 });
+
 leaveSchema.plugin(attachStructuredMirror('Leave'));
 
 module.exports = mongoose.model('Leave', leaveSchema);

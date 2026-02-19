@@ -23,6 +23,8 @@ const connectionSchema = new mongoose.Schema({
 
 // Ensure unique connection pair
 connectionSchema.index({ requesterId: 1, recipientId: 1 }, { unique: true });
+connectionSchema.index({ requesterId: 1, status: 1, updatedAt: -1 });
+connectionSchema.index({ recipientId: 1, status: 1, updatedAt: -1 });
 
 connectionSchema.plugin(attachStructuredMirror('Connection'));
 

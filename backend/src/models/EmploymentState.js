@@ -39,6 +39,13 @@ const employmentStateSchema = new mongoose.Schema({
     terminatedAt: {
         type: Date,
     },
+    aiResumeRating: {
+        score: { type: Number, default: 0 },
+        summary: { type: String, default: '' },
+        missingSkills: [{ type: String }],
+        interviewQuestions: [{ type: String }],
+        ratedAt: { type: Date },
+    },
 }, {
     timestamps: true,
 });
@@ -46,6 +53,8 @@ const employmentStateSchema = new mongoose.Schema({
 // Compound index: A user can only have one active employment state per organization? 
 // Or just one entry per org? Usually one effective role per org.
 employmentStateSchema.index({ userId: 1, organizationId: 1 }, { unique: true });
+employmentStateSchema.index({ organizationId: 1, status: 1, joinedAt: -1 });
+employmentStateSchema.index({ organizationId: 1, reportsToEmploymentId: 1, status: 1 });
 
 employmentStateSchema.plugin(attachStructuredMirror('EmploymentState'));
 

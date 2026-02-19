@@ -3,14 +3,18 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { ThumbsUp, MessageCircle, Send, User, Loader2, Sparkles, Bell } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Send, User, Loader2, Sparkles, Bell, ThumbsDown, UserPlus, UserCheck, Image, Video } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
 const FeedPage = () => {
     const { user, panel } = useAuthStore();
     const [posts, setPosts] = useState([]);
+    const [followingUserIds, setFollowingUserIds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newPost, setNewPost] = useState('');
+    const [attachmentUrl, setAttachmentUrl] = useState('');
+    const [attachmentType, setAttachmentType] = useState('IMAGE');
+    const [attachments, setAttachments] = useState([]);
     const [commentInputs, setCommentInputs] = useState({});
     const [posting, setPosting] = useState(false);
 
@@ -22,7 +26,8 @@ const FeedPage = () => {
         setLoading(true);
         try {
             const { data } = await api.get('/network/feed');
-            setPosts(data);
+            setPosts(Array.isArray(data) ? data : data.posts || []);
+            setFollowingUserIds(Array.isArray(data?.followingUserIds) ? data.followingUserIds : []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -30,14 +35,26 @@ const FeedPage = () => {
         }
     };
 
+    const handleAddAttachment = () => {
+        const url = String(attachmentUrl || '').trim();
+        if (!url) return;
+        setAttachments((prev) => [...prev, { type: attachmentType, url }]);
+        setAttachmentUrl('');
+    };
+
     const handlePost = async (event) => {
         event.preventDefault();
-        if (!newPost.trim()) return;
+        if (!newPost.trim() && attachments.length === 0) return;
         setPosting(true);
         try {
-            const { data } = await api.post('/network/posts', { content: newPost.trim() });
+            const { data } = await api.post('/network/posts', {
+                content: newPost.trim(),
+                attachments,
+            });
             setPosts((prev) => [data, ...prev]);
             setNewPost('');
+            setAttachments([]);
+            setAttachmentUrl('');
         } catch (error) {
             alert(error.response?.data?.message || 'Failed to post');
         } finally {
@@ -48,18 +65,32 @@ const FeedPage = () => {
     const toggleLike = async (postId) => {
         try {
             const { data } = await api.post(`/network/posts/${postId}/like`);
-            setPosts((prev) => prev.map((post) => (
-                post._id === postId
-                    ? {
-                        ...post,
-                        likes: data.liked
-                            ? [...post.likes, user.id]
-                            : post.likes.filter((id) => id !== user.id),
-                    }
-                    : post
-            )));
+            setPosts((prev) => prev.map((post) => {
+                if (post._id !== postId) return post;
+                const likes = data.liked
+                    ? [...(post.likes || []), user.id]
+                    : (post.likes || []).filter((id) => String(id) !== String(user.id));
+                const dislikes = (post.dislikes || []).filter((id) => String(id) !== String(user.id));
+                return { ...post, likes, dislikes };
+            }));
         } catch (error) {
             alert(error.response?.data?.message || 'Failed to like');
+        }
+    };
+
+    const toggleDislike = async (postId) => {
+        try {
+            const { data } = await api.post(`/network/posts/${postId}/dislike`);
+            setPosts((prev) => prev.map((post) => {
+                if (post._id !== postId) return post;
+                const dislikes = data.disliked
+                    ? [...(post.dislikes || []), user.id]
+                    : (post.dislikes || []).filter((id) => String(id) !== String(user.id));
+                const likes = (post.likes || []).filter((id) => String(id) !== String(user.id));
+                return { ...post, likes, dislikes };
+            }));
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to dislike');
         }
     };
 
@@ -69,11 +100,23 @@ const FeedPage = () => {
         try {
             const { data } = await api.post(`/network/posts/${postId}/comment`, { text });
             setPosts((prev) => prev.map((post) => (
-                post._id === postId ? { ...post, comments: [...post.comments, data] } : post
+                post._id === postId ? { ...post, comments: [...(post.comments || []), data] } : post
             )));
             setCommentInputs((prev) => ({ ...prev, [postId]: '' }));
         } catch (error) {
             alert(error.response?.data?.message || 'Failed to comment');
+        }
+    };
+
+    const toggleFollow = async (authorId) => {
+        try {
+            const { data } = await api.post(`/network/follow/${authorId}`);
+            setFollowingUserIds((prev) => {
+                if (data.following) return [...new Set([...prev, authorId])];
+                return prev.filter((id) => String(id) !== String(authorId));
+            });
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to follow');
         }
     };
 
@@ -116,9 +159,29 @@ const FeedPage = () => {
                             value={newPost}
                             onChange={(event) => setNewPost(event.target.value)}
                         />
+                        <div className="grid gap-2 md:grid-cols-[1fr_140px_auto]">
+                            <Input value={attachmentUrl} onChange={(event) => setAttachmentUrl(event.target.value)} placeholder="Attachment URL (image/video)" />
+                            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={attachmentType} onChange={(e) => setAttachmentType(e.target.value)}>
+                                <option value="IMAGE">Image</option>
+                                <option value="VIDEO">Video</option>
+                            </select>
+                            <Button type="button" variant="outline" onClick={handleAddAttachment}>Add Media</Button>
+                        </div>
+
+                        {attachments.length > 0 && (
+                            <div className="rounded-lg border bg-background/60 p-3 text-xs text-muted-foreground">
+                                {attachments.map((item, idx) => (
+                                    <div key={`${item.url}-${idx}`} className="flex items-center justify-between">
+                                        <span className="truncate">{item.type}: {item.url}</span>
+                                        <button type="button" className="ml-2 text-red-500" onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between">
-                            <p className="text-xs text-muted-foreground">Your post appears in network feed instantly.</p>
-                            <Button type="submit" isLoading={posting} disabled={posting || !newPost.trim()}>
+                            <p className="text-xs text-muted-foreground">Post text, images or videos directly in feed.</p>
+                            <Button type="submit" isLoading={posting} disabled={posting || (!newPost.trim() && attachments.length === 0)}>
                                 <Send className="mr-2 h-4 w-4" />
                                 Publish
                             </Button>
@@ -136,32 +199,59 @@ const FeedPage = () => {
                             const postAuthor = post.authorId?.profile || {};
                             const postName = `${postAuthor.firstName || ''} ${postAuthor.surname || postAuthor.lastName || ''}`.trim() || 'Member';
                             const headline = post.authorId?.professional?.headline || 'Professional Member';
-                            const isLiked = post.likes?.includes(user.id);
+                            const authorId = post.authorId?._id;
+                            const isLiked = (post.likes || []).some((id) => String(id) === String(user.id));
+                            const isDisliked = (post.dislikes || []).some((id) => String(id) === String(user.id));
+                            const isFollowing = followingUserIds.some((id) => String(id) === String(authorId));
 
                             return (
                                 <article key={post._id} className="glass-card rounded-xl p-4">
-                                    <div className="mb-3 flex items-center gap-3">
-                                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary">
-                                            <User className="h-5 w-5" />
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary">
+                                                <User className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold">{postName}</p>
+                                                <p className="text-xs text-muted-foreground">{headline}</p>
+                                                <p className="text-[11px] text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-semibold">{postName}</p>
-                                            <p className="text-xs text-muted-foreground">{headline}</p>
-                                            <p className="text-[11px] text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</p>
-                                        </div>
+                                        {authorId && String(authorId) !== String(user.id) && (
+                                            <Button variant="outline" size="sm" onClick={() => toggleFollow(authorId)}>
+                                                {isFollowing ? <UserCheck className="mr-1 h-4 w-4" /> : <UserPlus className="mr-1 h-4 w-4" />}
+                                                {isFollowing ? 'Following' : 'Follow'}
+                                            </Button>
+                                        )}
                                     </div>
 
-                                    <p className="whitespace-pre-wrap text-sm leading-6">{post.content}</p>
+                                    {post.content && <p className="whitespace-pre-wrap text-sm leading-6">{post.content}</p>}
+
+                                    {Array.isArray(post.attachments) && post.attachments.length > 0 && (
+                                        <div className="mt-3 grid gap-2">
+                                            {post.attachments.map((item, idx) => (
+                                                <div key={`${post._id}-att-${idx}`} className="rounded-lg border bg-background/70 p-3 text-xs">
+                                                    {item.type === 'IMAGE' ? <Image className="mr-1 inline h-3.5 w-3.5" /> : <Video className="mr-1 inline h-3.5 w-3.5" />}
+                                                    <a href={item.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{item.url}</a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
 
                                     <div className="mt-3 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
                                         <span>{post.likes?.length || 0} likes</span>
+                                        <span>{post.dislikes?.length || 0} dislikes</span>
                                         <span>{post.comments?.length || 0} comments</span>
                                     </div>
 
-                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <div className="mt-2 grid grid-cols-3 gap-2">
                                         <Button variant="outline" onClick={() => toggleLike(post._id)} className={isLiked ? 'border-primary text-primary' : ''}>
                                             <ThumbsUp className="mr-2 h-4 w-4" />
-                                            {isLiked ? 'Liked' : 'Like'}
+                                            Like
+                                        </Button>
+                                        <Button variant="outline" onClick={() => toggleDislike(post._id)} className={isDisliked ? 'border-primary text-primary' : ''}>
+                                            <ThumbsDown className="mr-2 h-4 w-4" />
+                                            Dislike
                                         </Button>
                                         <Button variant="outline">
                                             <MessageCircle className="mr-2 h-4 w-4" />
@@ -212,7 +302,7 @@ const FeedPage = () => {
                 <div className="glass-card rounded-xl p-4">
                     <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bell className="h-4 w-4 text-primary" /> Feed Tips</h3>
                     <p className="text-sm text-muted-foreground">
-                        Post updates, mention role changes, and maintain clean professional history for better reputation score.
+                        Post work updates with photo/video proof, follow members, and engage with comments to build professional trust.
                     </p>
                 </div>
             </aside>

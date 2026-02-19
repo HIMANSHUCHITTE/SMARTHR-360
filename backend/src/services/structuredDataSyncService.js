@@ -18,6 +18,10 @@ const structuredModelRegistry = [
     { entity: 'AuditLog', model: require('../models/AuditLog') },
     { entity: 'Announcement', model: require('../models/Announcement') },
     { entity: 'Connection', model: require('../models/Connection') },
+    { entity: 'Branch', model: require('../models/Branch') },
+    { entity: 'Department', model: require('../models/Department') },
+    { entity: 'ApprovalRequest', model: require('../models/ApprovalRequest') },
+    { entity: 'OrganizationRequest', model: require('../models/OrganizationRequest') },
 ];
 
 const BATCH_SIZE = 500;

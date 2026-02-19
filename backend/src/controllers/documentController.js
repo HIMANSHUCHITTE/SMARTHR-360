@@ -8,7 +8,7 @@ exports.uploadDocument = async (req, res) => {
         const { title, type, userId, fileUrl } = req.body;
 
         // If not admin, ensure userId is self
-        if (req.user.role === 'Employee' && userId !== req.user._id.toString()) {
+        if (req.userRole === 'Employee' && userId && userId !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Not authorized' });
         }
 
@@ -35,7 +35,7 @@ exports.getMyDocuments = async (req, res) => {
         const docs = await Document.find({
             organizationId: req.organizationId,
             userId: req.user._id
-        }).sort('-createdAt');
+        }).sort('-createdAt').lean();
         res.json(docs);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -50,7 +50,7 @@ exports.getUserDocuments = async (req, res) => {
         const docs = await Document.find({
             organizationId: req.organizationId,
             userId: req.params.userId
-        }).sort('-createdAt');
+        }).sort('-createdAt').lean();
         res.json(docs);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });

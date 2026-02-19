@@ -2,20 +2,41 @@ const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Connection = require('../models/Connection');
 const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 
-const authorProjection = 'email profile professional';
+const authorProjection = 'email profile.firstName profile.surname profile.lastName professional.headline social.followingUserIds';
+const commentAuthorProjection = 'profile.firstName profile.surname profile.lastName';
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const sendSafeNotification = async (userId, payload) => {
+    try {
+        await notificationService.send(userId, payload);
+    } catch (error) {
+        console.error('Network notification error', error?.message || error);
+    }
+};
 
 // @desc    Get Feed
 // @route   GET /api/network/feed
 // @access  Registered User
 exports.getFeed = async (req, res) => {
     try {
-        const posts = await Post.find()
-            .populate('authorId', authorProjection)
-            .populate('comments.userId', authorProjection)
-            .sort('-createdAt')
-            .limit(30);
-        res.json(posts);
+        const [posts, me] = await Promise.all([
+            Post.find()
+                .populate('authorId', authorProjection)
+                .populate('comments.userId', commentAuthorProjection)
+                .sort('-createdAt')
+                .limit(30)
+                .lean(),
+            User.findById(req.user._id).select('social.followingUserIds').lean(),
+        ]);
+
+        res.json({
+            posts,
+            followingUserIds: Array.isArray(me?.social?.followingUserIds)
+                ? me.social.followingUserIds.map((id) => String(id))
+                : [],
+        });
     } catch (error) {
         console.error('Network getFeed error', error);
         res.status(500).json({ message: 'Server Error' });
@@ -28,13 +49,22 @@ exports.getFeed = async (req, res) => {
 exports.createPost = async (req, res) => {
     try {
         const content = String(req.body.content || '').trim();
-        if (!content) {
-            return res.status(400).json({ message: 'Post content is required' });
+        const attachmentsInput = Array.isArray(req.body.attachments) ? req.body.attachments : [];
+        const attachments = attachmentsInput
+            .map((item) => ({
+                type: String(item?.type || '').toUpperCase(),
+                url: String(item?.url || '').trim(),
+            }))
+            .filter((item) => ['IMAGE', 'VIDEO'].includes(item.type) && item.url);
+
+        if (!content && attachments.length === 0) {
+            return res.status(400).json({ message: 'Post content or attachment is required' });
         }
 
         const post = await Post.create({
             authorId: req.user._id,
             content,
+            attachments,
         });
 
         await post.populate('authorId', authorProjection);
@@ -61,15 +91,55 @@ exports.toggleLikePost = async (req, res) => {
             post.likes = post.likes.filter((id) => String(id) !== userId);
         } else {
             post.likes.push(req.user._id);
+            post.dislikes = post.dislikes.filter((id) => String(id) !== userId);
+            if (String(post.authorId) !== userId) {
+                await sendSafeNotification(post.authorId, {
+                    type: 'INFO',
+                    title: 'New post like',
+                    message: 'Someone liked your feed post.',
+                });
+            }
         }
         await post.save();
 
         res.json({
             liked: !alreadyLiked,
             likesCount: post.likes.length,
+            dislikesCount: post.dislikes.length,
         });
     } catch (error) {
         console.error('Network toggleLikePost error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Toggle Dislike on Post
+// @route   POST /api/network/posts/:postId/dislike
+// @access  Registered User
+exports.toggleDislikePost = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.postId);
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        const userId = String(req.user._id);
+        const alreadyDisliked = post.dislikes.some((id) => String(id) === userId);
+        if (alreadyDisliked) {
+            post.dislikes = post.dislikes.filter((id) => String(id) !== userId);
+        } else {
+            post.dislikes.push(req.user._id);
+            post.likes = post.likes.filter((id) => String(id) !== userId);
+        }
+        await post.save();
+
+        res.json({
+            disliked: !alreadyDisliked,
+            dislikesCount: post.dislikes.length,
+            likesCount: post.likes.length,
+        });
+    } catch (error) {
+        console.error('Network toggleDislikePost error', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -95,12 +165,88 @@ exports.addComment = async (req, res) => {
             createdAt: new Date(),
         });
         await post.save();
-        await post.populate('comments.userId', authorProjection);
+        await post.populate('comments.userId', commentAuthorProjection);
+
+        if (String(post.authorId) !== String(req.user._id)) {
+            await sendSafeNotification(post.authorId, {
+                type: 'INFO',
+                title: 'New post comment',
+                message: 'Someone commented on your post.',
+            });
+        }
 
         const latest = post.comments[post.comments.length - 1];
         res.status(201).json(latest);
     } catch (error) {
         console.error('Network addComment error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Follow / unfollow user
+// @route   POST /api/network/follow/:userId
+// @access  Registered User
+exports.toggleFollowUser = async (req, res) => {
+    try {
+        const targetId = req.params.userId;
+        if (String(targetId) === String(req.user._id)) {
+            return res.status(400).json({ message: 'Cannot follow yourself' });
+        }
+
+        const [me, target] = await Promise.all([
+            User.findById(req.user._id),
+            User.findById(targetId),
+        ]);
+
+        if (!target) return res.status(404).json({ message: 'User not found' });
+
+        me.social = me.social || { followingUserIds: [], followerUserIds: [] };
+        target.social = target.social || { followingUserIds: [], followerUserIds: [] };
+
+        const alreadyFollowing = (me.social.followingUserIds || []).some((id) => String(id) === String(targetId));
+
+        if (alreadyFollowing) {
+            me.social.followingUserIds = me.social.followingUserIds.filter((id) => String(id) !== String(targetId));
+            target.social.followerUserIds = (target.social.followerUserIds || []).filter((id) => String(id) !== String(req.user._id));
+        } else {
+            me.social.followingUserIds.push(target._id);
+            target.social.followerUserIds = target.social.followerUserIds || [];
+            if (!target.social.followerUserIds.some((id) => String(id) === String(req.user._id))) {
+                target.social.followerUserIds.push(req.user._id);
+            }
+
+            await sendSafeNotification(target._id, {
+                type: 'INFO',
+                title: 'New follower',
+                message: 'Someone started following your updates.',
+            });
+        }
+
+        await Promise.all([me.save(), target.save()]);
+
+        res.json({
+            following: !alreadyFollowing,
+            followingCount: me.social.followingUserIds.length,
+        });
+    } catch (error) {
+        console.error('Network toggleFollowUser error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get my following list ids
+// @route   GET /api/network/follows
+// @access  Registered User
+exports.getMyFollows = async (req, res) => {
+    try {
+        const me = await User.findById(req.user._id).select('social.followingUserIds').lean();
+        res.json({
+            followingUserIds: Array.isArray(me?.social?.followingUserIds)
+                ? me.social.followingUserIds.map((id) => String(id))
+                : [],
+        });
+    } catch (error) {
+        console.error('Network getMyFollows error', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -123,8 +269,9 @@ exports.getSuggestions = async (req, res) => {
         });
 
         const users = await User.find({ _id: { $nin: Array.from(excludedIds).map((id) => new mongoose.Types.ObjectId(id)) } })
-            .select('email profile professional')
-            .limit(12);
+            .select(authorProjection)
+            .limit(12)
+            .lean();
 
         res.json(users);
     } catch (error) {
@@ -141,7 +288,7 @@ exports.searchPeople = async (req, res) => {
         const q = String(req.query.q || '').trim();
         if (!q) return res.json([]);
 
-        const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const regex = new RegExp(escapeRegex(q), 'i');
         const users = await User.find({
             $or: [
                 { 'profile.firstName': regex },
@@ -150,7 +297,7 @@ exports.searchPeople = async (req, res) => {
                 { email: regex },
             ],
             _id: { $ne: req.user._id },
-        }).select('email profile professional').limit(20);
+        }).select(authorProjection).limit(20).lean();
 
         res.json(users);
     } catch (error) {
@@ -171,7 +318,8 @@ exports.getConnections = async (req, res) => {
             .populate('requesterId', authorProjection)
             .populate('recipientId', authorProjection)
             .sort('-updatedAt')
-            .limit(100);
+            .limit(100)
+            .lean();
 
         const connections = rows.map((row) => {
             const other = String(row.requesterId._id) === String(req.user._id) ? row.recipientId : row.requesterId;
@@ -185,7 +333,30 @@ exports.getConnections = async (req, res) => {
     }
 };
 
-// @desc    Send/Accept connection request
+// @desc    List incoming/outgoing connection requests
+// @route   GET /api/network/requests
+// @access  Registered User
+exports.getConnectionRequests = async (req, res) => {
+    try {
+        const [incoming, outgoing] = await Promise.all([
+            Connection.find({ recipientId: req.user._id, status: 'PENDING' })
+                .populate('requesterId', authorProjection)
+                .sort('-createdAt')
+                .lean(),
+            Connection.find({ requesterId: req.user._id, status: 'PENDING' })
+                .populate('recipientId', authorProjection)
+                .sort('-createdAt')
+                .lean(),
+        ]);
+
+        res.json({ incoming, outgoing });
+    } catch (error) {
+        console.error('Network getConnectionRequests error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Send connection request
 // @route   POST /api/network/connect/:userId
 // @access  Registered User
 exports.sendConnectionRequest = async (req, res) => {
@@ -195,34 +366,108 @@ exports.sendConnectionRequest = async (req, res) => {
             return res.status(400).json({ message: 'Cannot connect to yourself' });
         }
 
-        const forward = await Connection.findOne({
-            requesterId: req.user._id,
-            recipientId: targetId,
-        });
-        if (forward) {
-            return res.status(400).json({ message: 'Request already sent' });
+        const targetUser = await User.findById(targetId).select('_id');
+        if (!targetUser) {
+            return res.status(404).json({ message: 'User not found' });
         }
 
-        const reverse = await Connection.findOne({
-            requesterId: targetId,
-            recipientId: req.user._id,
+        const existing = await Connection.findOne({
+            $or: [
+                { requesterId: req.user._id, recipientId: targetId },
+                { requesterId: targetId, recipientId: req.user._id },
+            ],
         });
 
-        if (reverse && reverse.status === 'PENDING') {
-            reverse.status = 'ACCEPTED';
-            await reverse.save();
-            return res.json({ message: 'Connection accepted' });
+        if (existing) {
+            if (existing.status === 'ACCEPTED') {
+                return res.status(400).json({ message: 'Already connected' });
+            }
+            if (existing.status === 'PENDING') {
+                return res.status(400).json({ message: 'Connection request already pending' });
+            }
+            existing.requesterId = req.user._id;
+            existing.recipientId = targetId;
+            existing.status = 'PENDING';
+            await existing.save();
+        } else {
+            await Connection.create({
+                requesterId: req.user._id,
+                recipientId: targetId,
+                status: 'PENDING',
+            });
         }
 
-        await Connection.create({
-            requesterId: req.user._id,
-            recipientId: targetId,
-            status: 'PENDING',
+        await sendSafeNotification(targetId, {
+            type: 'INFO',
+            title: 'New connection request',
+            message: 'Someone sent you a network connection request.',
         });
 
         res.json({ message: 'Request sent' });
     } catch (error) {
         console.error('Network sendConnectionRequest error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Accept pending request
+// @route   POST /api/network/requests/:requestId/accept
+// @access  Registered User
+exports.acceptConnectionRequest = async (req, res) => {
+    try {
+        const request = await Connection.findOne({
+            _id: req.params.requestId,
+            recipientId: req.user._id,
+            status: 'PENDING',
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Pending request not found' });
+        }
+
+        request.status = 'ACCEPTED';
+        await request.save();
+
+        await sendSafeNotification(request.requesterId, {
+            type: 'SUCCESS',
+            title: 'Connection accepted',
+            message: 'Your connection request has been accepted.',
+        });
+
+        res.json({ message: 'Connection accepted' });
+    } catch (error) {
+        console.error('Network acceptConnectionRequest error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Reject pending request
+// @route   POST /api/network/requests/:requestId/reject
+// @access  Registered User
+exports.rejectConnectionRequest = async (req, res) => {
+    try {
+        const request = await Connection.findOne({
+            _id: req.params.requestId,
+            recipientId: req.user._id,
+            status: 'PENDING',
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Pending request not found' });
+        }
+
+        request.status = 'REJECTED';
+        await request.save();
+
+        await sendSafeNotification(request.requesterId, {
+            type: 'WARNING',
+            title: 'Connection request updated',
+            message: 'Your connection request was not accepted.',
+        });
+
+        res.json({ message: 'Connection rejected' });
+    } catch (error) {
+        console.error('Network rejectConnectionRequest error', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

@@ -5,6 +5,13 @@ const AuditLog = require('../models/AuditLog');
 const JobPosting = require('../models/JobPosting');
 const SupportTicket = require('../models/SupportTicket');
 const Announcement = require('../models/Announcement');
+const OrganizationRequest = require('../models/OrganizationRequest');
+const notificationService = require('../services/notificationService');
+const { isValidOrganizationType } = require('../constants/organizationTemplates');
+const {
+    provisionOrganizationFromRequest,
+    rejectOrganizationRequest: rejectOrganizationRequestService,
+} = require('../services/organizationProvisioningService');
 const { sequelize, mongoose } = require('../config/db');
 
 const PLAN_LIMITS = {
@@ -19,6 +26,151 @@ const buildPlanSettings = (planId) => {
         planId: normalizedPlanId,
         ...(PLAN_LIMITS[normalizedPlanId] || PLAN_LIMITS.FREE),
     };
+};
+
+exports.getOrganizationRequests = async (req, res) => {
+    try {
+        const status = String(req.query.status || 'PENDING').toUpperCase();
+        const query = ['PENDING', 'APPROVED', 'REJECTED'].includes(status)
+            ? { status }
+            : {};
+
+        const rows = await OrganizationRequest.find(query)
+            .sort('-createdAt')
+            .populate('requestedByUserId', 'email profile')
+            .populate('decision.reviewedBy', 'email profile')
+            .populate('linkedOrganizationId', 'name slug platformStatus organizationType')
+            .lean();
+
+        res.json(rows);
+    } catch (error) {
+        console.error('Admin getOrganizationRequests error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.getOrganizationRequestById = async (req, res) => {
+    try {
+        const row = await OrganizationRequest.findById(req.params.id)
+            .populate('requestedByUserId', 'email profile')
+            .populate('decision.reviewedBy', 'email profile')
+            .populate('linkedOrganizationId', 'name slug platformStatus organizationType');
+
+        if (!row) return res.status(404).json({ message: 'Organization request not found' });
+        res.json(row);
+    } catch (error) {
+        console.error('Admin getOrganizationRequestById error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.updateOrganizationRequest = async (req, res) => {
+    try {
+        const row = await OrganizationRequest.findById(req.params.id);
+        if (!row) return res.status(404).json({ message: 'Organization request not found' });
+        if (row.status !== 'PENDING') {
+            return res.status(400).json({ message: 'Only pending request can be modified' });
+        }
+
+        const patch = {};
+        ['organizationName', 'industryType', 'companySize', 'description'].forEach((field) => {
+            if (typeof req.body[field] !== 'undefined') {
+                patch[field] = String(req.body[field] || '').trim();
+            }
+        });
+        if (typeof req.body.organizationType !== 'undefined') {
+            if (!isValidOrganizationType(req.body.organizationType)) {
+                return res.status(400).json({ message: 'Invalid organizationType' });
+            }
+            patch.organizationType = req.body.organizationType;
+        }
+
+        Object.assign(row, patch);
+        await row.save();
+        res.json(row);
+    } catch (error) {
+        console.error('Admin updateOrganizationRequest error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.approveOrganizationRequest = async (req, res) => {
+    try {
+        if (req.body.organizationType && !isValidOrganizationType(req.body.organizationType)) {
+            return res.status(400).json({ message: 'Invalid organizationType' });
+        }
+
+        const result = await provisionOrganizationFromRequest({
+            requestId: req.params.id,
+            reviewedByUserId: req.user._id,
+            patch: {
+                organizationName: req.body.organizationName,
+                organizationType: req.body.organizationType,
+                approvalNote: req.body.note,
+            },
+        });
+
+        res.json({
+            message: 'Organization request approved and organization provisioned',
+            organization: {
+                id: result.organization._id,
+                name: result.organization.name,
+                slug: result.organization.slug,
+                organizationType: result.organization.organizationType,
+            },
+            request: {
+                id: result.request._id,
+                status: result.request.status,
+                linkedOrganizationId: result.request.linkedOrganizationId,
+            },
+        });
+
+        try {
+            await notificationService.send(result.request.requestedByUserId, {
+                organizationId: result.organization._id,
+                type: 'SUCCESS',
+                title: 'Organization approved',
+                message: `${result.organization.name} has been approved and activated.`,
+            });
+        } catch (notifyError) {
+            console.error('Admin approveOrganizationRequest notification error', notifyError?.message || notifyError);
+        }
+    } catch (error) {
+        console.error('Admin approveOrganizationRequest error', error);
+        res.status(400).json({ message: error.message || 'Could not approve request' });
+    }
+};
+
+exports.rejectOrganizationRequest = async (req, res) => {
+    try {
+        const reason = String(req.body.reason || '').trim();
+        if (!reason) {
+            return res.status(400).json({ message: 'reason is required' });
+        }
+
+        const row = await rejectOrganizationRequestService({
+            requestId: req.params.id,
+            reviewedByUserId: req.user._id,
+            reason,
+        });
+        res.json({
+            message: 'Organization request rejected',
+            request: row,
+        });
+
+        try {
+            await notificationService.send(row.requestedByUserId, {
+                type: 'WARNING',
+                title: 'Organization request rejected',
+                message: reason,
+            });
+        } catch (notifyError) {
+            console.error('Admin rejectOrganizationRequest notification error', notifyError?.message || notifyError);
+        }
+    } catch (error) {
+        console.error('Admin rejectOrganizationRequest error', error);
+        res.status(400).json({ message: error.message || 'Could not reject request' });
+    }
 };
 
 exports.getAllOrganizations = async (req, res) => {

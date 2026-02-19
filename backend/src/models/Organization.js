@@ -1,123 +1,31 @@
 const mongoose = require('mongoose');
 const attachStructuredMirror = require('./plugins/attachStructuredMirror');
+const {
+    ORGANIZATION_TYPES,
+    DEFAULT_UNIVERSAL_LEVELS,
+    getOrganizationTemplates,
+} = require('../constants/organizationTemplates');
 
-const defaultHierarchyTemplates = () => ([
-    {
-        type: 'CORPORATE_IT',
-        name: 'Corporate / IT Company',
-        levels: [
-            'Shareholders',
-            'Board of Directors',
-            'CEO',
-            'C-Level Executives (CTO, CFO, COO, CHRO)',
-            'Department Directors',
-            'Senior Managers',
-            'Managers',
-            'Team Leads',
-            'Senior Employees',
-            'Junior Employees / Interns',
-        ],
-        reportingExample: [
-            'CEO',
-            'CTO',
-            'Engineering Director',
-            'Project Manager',
-            'Team Lead',
-            'Developers',
-        ],
+const defaultGlobalPolicies = () => ({
+    leavePolicy: {
+        annualLeaveDays: 18,
+        carryForwardDays: 8,
+        approvalMode: 'MANAGER_THEN_OWNER',
     },
-    {
-        type: 'SCHOOL_COLLEGE',
-        name: 'School / College',
-        levels: [
-            'Trust / Chairman',
-            'Principal',
-            'Vice Principal',
-            'HOD',
-            'Teachers',
-            'Assistant Teachers',
-        ],
-        reportingExample: [
-            'Principal',
-            'Administrative Officer',
-            'Clerks / Office Staff',
-            'Peon / Support Staff',
-        ],
+    attendancePolicy: {
+        weeklyOffDays: 1,
+        lateGraceMinutes: 15,
+        overtimeEnabled: false,
     },
-    {
-        type: 'HOSPITAL',
-        name: 'Hospital',
-        levels: [
-            'Hospital Owner / Board',
-            'Medical Director',
-            'Department Heads',
-            'Senior Doctors',
-            'Junior Doctors',
-            'Nurses',
-            'Ward Staff',
-        ],
-        reportingExample: [
-            'Hospital Director',
-            'Admin Manager',
-            'Reception / Billing Staff',
-        ],
+    probationPolicy: {
+        durationMonths: 6,
+        autoConfirmOnCompletion: false,
     },
-    {
-        type: 'MANUFACTURING_FACTORY',
-        name: 'Manufacturing / Factory',
-        levels: [
-            'Owner / Board',
-            'Plant Head',
-            'Production Manager',
-            'Shift Supervisor',
-            'Line Incharge',
-            'Skilled Workers',
-            'Helpers / Contract Workers',
-        ],
-        reportingExample: [
-            'Plant Head',
-            'Maintenance Manager',
-            'Engineers',
-            'Technicians',
-        ],
+    approvalPolicy: {
+        matrixEnabled: false,
+        allowSelfApproval: false,
     },
-    {
-        type: 'GOVERNMENT',
-        name: 'Government Organization',
-        levels: [
-            'Ministry / Central Authority',
-            'Chairman / Secretary',
-            'Director',
-            'Joint Director',
-            'Section Officer',
-            'Clerk',
-            'Field Staff',
-        ],
-        reportingExample: [
-            'Promotion flow usually follows seniority + grade model',
-        ],
-    },
-    {
-        type: 'RETAIL_CHAIN',
-        name: 'Retail Chain',
-        levels: [
-            'Owner / Corporate Office',
-            'Regional Manager',
-            'Area Manager',
-            'Store Manager',
-            'Assistant Store Manager',
-            'Cashier / Sales Executive',
-            'Helper / Inventory Staff',
-        ],
-        reportingExample: [
-            'Corporate Office',
-            'Regional Manager',
-            'Area Manager',
-            'Store Manager',
-            'Store Staff',
-        ],
-    },
-]);
+});
 
 const organizationSchema = new mongoose.Schema({
     name: {
@@ -136,6 +44,15 @@ const organizationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
+    },
+    organizationType: {
+        type: String,
+        enum: Object.values(ORGANIZATION_TYPES),
+        default: ORGANIZATION_TYPES.CORPORATE_IT,
+    },
+    organizationTypeLocked: {
+        type: Boolean,
+        default: false,
     },
     subscription: {
         planId: { type: String, enum: ['FREE', 'PRO', 'ENTERPRISE'], default: 'FREE' },
@@ -176,6 +93,10 @@ const organizationSchema = new mongoose.Schema({
             recruitment: { type: Boolean, default: false },
         },
     },
+    globalPolicies: {
+        type: mongoose.Schema.Types.Mixed,
+        default: defaultGlobalPolicies,
+    },
     compliance: {
         kycVerified: { type: Boolean, default: false },
         emailVerified: { type: Boolean, default: false },
@@ -189,16 +110,23 @@ const organizationSchema = new mongoose.Schema({
                 name: { type: String, required: true },
                 levels: [{ type: String }],
                 reportingExample: [{ type: String }],
+                departments: [{ type: String }],
+                roleBehavior: { type: String, default: '' },
             }],
-            default: defaultHierarchyTemplates,
+            default: getOrganizationTemplates,
+        },
+        activeTemplateType: {
+            type: String,
+            enum: Object.values(ORGANIZATION_TYPES),
+            default: ORGANIZATION_TYPES.CORPORATE_IT,
+        },
+        customLevels: {
+            type: [String],
+            default: () => [],
         },
         universalLevels: {
             type: [String],
-            default: () => [
-                'Strategic Level (Decision Makers)',
-                'Managerial Level (Control & Supervision)',
-                'Operational Level (Execution)',
-            ],
+            default: () => [...DEFAULT_UNIVERSAL_LEVELS],
         },
         matrixReportingEnabled: {
             type: Boolean,
@@ -217,6 +145,9 @@ const organizationSchema = new mongoose.Schema({
 }, {
     timestamps: true,
 });
+
+organizationSchema.index({ ownerId: 1, organizationType: 1 });
+organizationSchema.index({ organizationType: 1, platformStatus: 1 });
 
 organizationSchema.plugin(attachStructuredMirror('Organization'));
 

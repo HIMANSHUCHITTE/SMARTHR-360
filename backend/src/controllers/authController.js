@@ -1,13 +1,17 @@
 const Joi = require('joi');
 const User = require('../models/User');
-const Organization = require('../models/Organization');
 const EmploymentState = require('../models/EmploymentState');
-const Role = require('../models/Role');
 const AuditLog = require('../models/AuditLog');
 const OtpSession = require('../models/OtpSession');
+const OrganizationRequest = require('../models/OrganizationRequest');
 const LoginAudit = require('../models/postgres/LoginAudit');
 const notificationService = require('../services/notificationService');
 const { hashPassword, comparePassword, signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/authUtils');
+const {
+    ORGANIZATION_TYPES,
+    getOrganizationTemplates,
+    isValidOrganizationType,
+} = require('../constants/organizationTemplates');
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 
@@ -36,6 +40,11 @@ const registerCompleteSchema = Joi.object({
     verificationId: Joi.string().required(),
     purpose: Joi.string().valid('OWNER', 'USER').required(),
     preferredPlan: Joi.string().valid('FREE', 'PRO', 'ENTERPRISE').optional(),
+    organizationType: Joi.string().valid(...Object.values(ORGANIZATION_TYPES)).optional(),
+    organizationName: Joi.string().trim().min(2).max(120).optional(),
+    industryType: Joi.string().trim().min(2).max(80).optional(),
+    companySize: Joi.string().trim().min(1).max(40).optional(),
+    description: Joi.string().trim().max(1200).allow('', null).optional(),
 });
 
 const legacyRegisterSchema = Joi.object({
@@ -46,6 +55,10 @@ const legacyRegisterSchema = Joi.object({
     isOwner: Joi.boolean().default(false),
     organizationName: Joi.string().when('isOwner', { is: true, then: Joi.required() }),
     organizationSlug: Joi.string().when('isOwner', { is: true, then: Joi.required() }),
+    organizationType: Joi.string().valid(...Object.values(ORGANIZATION_TYPES)).optional(),
+    industryType: Joi.string().trim().min(2).max(80).optional(),
+    companySize: Joi.string().trim().min(1).max(40).optional(),
+    description: Joi.string().trim().max(1200).allow('', null).optional(),
 });
 
 const loginStartSchema = Joi.object({
@@ -63,27 +76,19 @@ const legacyLoginSchema = Joi.object({
     password: Joi.string().required(),
 });
 
+const organizationRequestSchema = Joi.object({
+    organizationName: Joi.string().trim().min(2).max(120).required(),
+    industryType: Joi.string().trim().min(2).max(80).required(),
+    organizationType: Joi.string().valid(...Object.values(ORGANIZATION_TYPES)).required(),
+    companySize: Joi.string().trim().min(1).max(40).required(),
+    description: Joi.string().trim().max(1200).allow('', null).default(''),
+});
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const makeSessionId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
-
-const toSlug = (value) => String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-    .slice(0, 40);
-
-const uniqueSlug = async (base) => {
-    let candidate = base || `org-${Date.now().toString(36)}`;
-    let i = 0;
-    while (await Organization.exists({ slug: candidate })) {
-        i += 1;
-        candidate = `${base}-${i}`;
-    }
-    return candidate;
-};
 
 const setRefreshCookie = (res, refreshToken) => {
     res.cookie('refreshToken', refreshToken, {
@@ -94,12 +99,15 @@ const setRefreshCookie = (res, refreshToken) => {
     });
 };
 
-const getPanelDecision = ({ isSuperAdmin, employment }) => {
+const getPanelDecision = ({ isSuperAdmin, employment, ownerRequest }) => {
     if (isSuperAdmin) {
         return { panel: 'SUPERADMIN', redirectPath: '/superadmin/dashboard' };
     }
 
     if (!employment) {
+        if (ownerRequest) {
+            return { panel: 'OWNER', redirectPath: '/owner/dashboard' };
+        }
         return { panel: 'USER', redirectPath: '/user/dashboard' };
     }
 
@@ -111,17 +119,32 @@ const getPanelDecision = ({ isSuperAdmin, employment }) => {
     return { panel: 'SUBADMIN', redirectPath: '/subadmin/dashboard' };
 };
 
-const ensureOwnerRole = async (organizationId) => {
-    let ownerRole = await Role.findOne({ organizationId, name: 'Owner' });
-    if (!ownerRole) {
-        ownerRole = await Role.create({
-            organizationId,
-            name: 'Owner',
-            permissions: ['*'],
-            isSystem: true,
-        });
+const getLatestOrganizationRequest = async (userId) => OrganizationRequest.findOne({
+    requestedByUserId: userId,
+}).sort('-createdAt');
+
+const createOrganizationRequestForUser = async ({ userId, payload }) => {
+    const pending = await OrganizationRequest.findOne({
+        requestedByUserId: userId,
+        status: 'PENDING',
+    }).select('_id');
+    if (pending) {
+        throw new Error('You already have a pending organization request');
     }
-    return ownerRole;
+
+    const latest = await getLatestOrganizationRequest(userId);
+    const nextRevision = latest ? (latest.revision || 1) + 1 : 1;
+
+    return OrganizationRequest.create({
+        requestedByUserId: userId,
+        organizationName: payload.organizationName,
+        industryType: payload.industryType,
+        organizationType: payload.organizationType,
+        companySize: payload.companySize,
+        description: payload.description || '',
+        status: 'PENDING',
+        revision: nextRevision,
+    });
 };
 
 const issueLoginTokens = async ({ user, organizationId = null, role = null }) => {
@@ -248,7 +271,6 @@ exports.registerComplete = async (req, res) => {
         if (!session.verified) return res.status(400).json({ message: 'Complete OTP verification first' });
 
         const { firstName, middleName, surname, dateOfBirth, email, mobile, avatarUrl, passwordHash } = session.registerData || {};
-        const ownerPlan = (value.preferredPlan || 'FREE').toUpperCase();
 
         const alreadyRegistered = await User.findOne({ $or: [{ email }, { mobile }] }).select('_id');
         if (alreadyRegistered) {
@@ -276,47 +298,29 @@ exports.registerComplete = async (req, res) => {
             isSuperAdmin: false,
         });
 
-        let organization = null;
+        let organizationRequest = null;
         if (value.purpose === 'OWNER') {
-            const orgName = `${firstName} ${surname}`.trim() + ' Workspace';
-            const slugBase = toSlug(`${firstName}-${surname}`) || `workspace-${Date.now().toString(36)}`;
-            const slug = await uniqueSlug(slugBase);
+            if (!value.organizationName || !value.industryType || !value.companySize) {
+                return res.status(400).json({
+                    message: 'organizationName, industryType, and companySize are required for OWNER registration',
+                });
+            }
 
-            const planConfig = {
-                FREE: { employeeLimit: 5, features: ['core_hrms'] },
-                PRO: { employeeLimit: 50, features: ['core_hrms', 'payroll', 'recruitment', 'reputation'] },
-                ENTERPRISE: { employeeLimit: 100000, features: ['core_hrms', 'payroll', 'recruitment', 'reputation', 'api_access'] },
-            };
+            const selectedOrgType = isValidOrganizationType(value.organizationType)
+                ? value.organizationType
+                : ORGANIZATION_TYPES.CORPORATE_IT;
 
-            organization = await Organization.create({
-                name: orgName,
-                slug,
-                ownerId: user._id,
-                platformStatus: 'PENDING',
-                subscription: {
-                    planId: ownerPlan,
-                    status: 'ACTIVE',
-                    employeeLimit: planConfig[ownerPlan].employeeLimit,
-                    features: planConfig[ownerPlan].features,
-                },
-            });
-
-            const ownerRole = await ensureOwnerRole(organization._id);
-            await EmploymentState.create({
+            organizationRequest = await createOrganizationRequestForUser({
                 userId: user._id,
-                organizationId: organization._id,
-                roleId: ownerRole._id,
-                status: 'ACTIVE',
-                designation: 'Owner',
-                joinedAt: new Date(),
-            });
-
-            await User.findByIdAndUpdate(user._id, {
-                $set: {
-                    'employment.status': 'ACTIVE',
-                    'employment.currentOrganizationId': organization._id,
+                payload: {
+                    organizationName: String(value.organizationName).trim(),
+                    industryType: String(value.industryType).trim(),
+                    organizationType: selectedOrgType,
+                    companySize: String(value.companySize).trim(),
+                    description: String(value.description || '').trim(),
                 },
             });
+            await notifySuperAdminsForOrganizationRequest(organizationRequest);
         }
 
         await OtpSession.deleteOne({ _id: session._id });
@@ -324,7 +328,12 @@ exports.registerComplete = async (req, res) => {
         res.status(201).json({
             message: 'Registration complete. Please login.',
             purpose: value.purpose,
-            organization: organization ? { id: organization._id, name: organization.name } : null,
+            organizationRequest: organizationRequest ? {
+                id: organizationRequest._id,
+                status: organizationRequest.status,
+                organizationType: organizationRequest.organizationType,
+                organizationName: organizationRequest.organizationName,
+            } : null,
         });
     } catch (error) {
         console.error('registerComplete error', error);
@@ -405,7 +414,15 @@ exports.loginVerify = async (req, res) => {
             status: 'ACTIVE',
         }).populate('organizationId', 'name slug').populate('roleId', 'name');
 
-        const panelDecision = getPanelDecision({ isSuperAdmin: user.isSuperAdmin, employment: activeEmployment });
+        const latestOwnerRequest = activeEmployment
+            ? null
+            : await getLatestOrganizationRequest(user._id);
+
+        const panelDecision = getPanelDecision({
+            isSuperAdmin: user.isSuperAdmin,
+            employment: activeEmployment,
+            ownerRequest: latestOwnerRequest,
+        });
         const { accessToken, refreshToken } = await issueLoginTokens({
             user,
             organizationId: activeEmployment?.organizationId?._id || null,
@@ -476,6 +493,11 @@ exports.loginVerify = async (req, res) => {
                 slug: activeEmployment.organizationId.slug,
                 role: activeEmployment.roleId?.name || null,
             } : null,
+            organizationRequestStatus: latestOwnerRequest ? {
+                id: latestOwnerRequest._id,
+                status: latestOwnerRequest.status,
+                reason: latestOwnerRequest.decision?.reason || '',
+            } : null,
         });
     } catch (error) {
         console.error('loginVerify error', error);
@@ -488,7 +510,10 @@ exports.register = async (req, res) => {
     try {
         const { error } = legacyRegisterSchema.validate(req.body);
         if (error) return res.status(400).json({ message: error.details[0].message });
-        const { firstName, lastName, email, password, isOwner, organizationName, organizationSlug } = req.body;
+        const { firstName, lastName, email, password, isOwner, organizationName } = req.body;
+        const orgType = isValidOrganizationType(req.body.organizationType)
+            ? req.body.organizationType
+            : ORGANIZATION_TYPES.CORPORATE_IT;
 
         const userExists = await User.findOne({ email: normalizeEmail(email) });
         if (userExists) return res.status(400).json({ message: 'User already exists' });
@@ -506,24 +531,19 @@ exports.register = async (req, res) => {
             isSuperAdmin: false,
         });
 
-        let organization = null;
+        let organizationRequest = null;
         if (isOwner) {
-            const slug = await uniqueSlug(toSlug(organizationSlug));
-            organization = await Organization.create({
-                name: organizationName,
-                slug,
-                ownerId: user._id,
-            });
-
-            const ownerRole = await ensureOwnerRole(organization._id);
-            await EmploymentState.create({
+            organizationRequest = await createOrganizationRequestForUser({
                 userId: user._id,
-                organizationId: organization._id,
-                roleId: ownerRole._id,
-                status: 'ACTIVE',
-                designation: 'Owner',
-                joinedAt: new Date(),
+                payload: {
+                    organizationName: String(organizationName).trim(),
+                    industryType: String(req.body.industryType || 'General').trim(),
+                    organizationType: orgType,
+                    companySize: String(req.body.companySize || '1-10').trim(),
+                    description: String(req.body.description || '').trim(),
+                },
             });
+            await notifySuperAdminsForOrganizationRequest(organizationRequest);
         }
 
         const { accessToken, refreshToken } = await issueLoginTokens({ user });
@@ -536,7 +556,10 @@ exports.register = async (req, res) => {
                 email: user.email,
                 profile: user.profile,
             },
-            organization: organization ? { id: organization._id, name: organization.name } : null,
+            organizationRequest: organizationRequest ? {
+                id: organizationRequest._id,
+                status: organizationRequest.status,
+            } : null,
         });
     } catch (error) {
         console.error('register error', error);
@@ -614,7 +637,7 @@ exports.getOrganizations = async (req, res) => {
         const employments = await EmploymentState.find({
             userId: req.user.id,
             status: { $in: ['ACTIVE', 'INVITED'] },
-        }).populate('organizationId', 'name slug platformStatus').populate('roleId', 'name');
+        }).populate('organizationId', 'name slug platformStatus organizationType').populate('roleId', 'name');
 
         res.json({
             organizations: employments.map((item) => ({
@@ -623,6 +646,7 @@ exports.getOrganizations = async (req, res) => {
                 organizationName: item.organizationId?.name,
                 organizationSlug: item.organizationId?.slug,
                 platformStatus: item.organizationId?.platformStatus,
+                organizationType: item.organizationId?.organizationType || null,
                 role: item.roleId?.name,
                 status: item.status,
             })),
@@ -690,6 +714,149 @@ exports.switchOrganization = async (req, res) => {
         });
     } catch (error) {
         console.error('Auth switchOrganization error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+const notifySuperAdminsForOrganizationRequest = async (organizationRequest) => {
+    try {
+        const superAdmins = await User.find({ isSuperAdmin: true }).select('_id');
+        if (!superAdmins.length) return;
+
+        await Promise.all(superAdmins.map((admin) => notificationService.send(admin._id, {
+            type: 'INFO',
+            title: 'New organization request',
+            message: `${organizationRequest.organizationName} is waiting for approval.`,
+        })));
+    } catch (error) {
+        console.error('notifySuperAdminsForOrganizationRequest error', error?.message || error);
+    }
+};
+
+exports.getMyOrganizationRequestState = async (req, res) => {
+    try {
+        const [activeEmployment, latestRequest] = await Promise.all([
+            EmploymentState.findOne({
+                userId: req.user.id,
+                status: 'ACTIVE',
+            }).populate('organizationId', 'name slug platformStatus organizationType organizationTypeLocked').populate('roleId', 'name'),
+            getLatestOrganizationRequest(req.user.id),
+        ]);
+
+        if (activeEmployment?.organizationId) {
+            return res.json({
+                state: 'APPROVED',
+                modulesUnlocked: true,
+                organization: {
+                    id: activeEmployment.organizationId._id,
+                    name: activeEmployment.organizationId.name,
+                    slug: activeEmployment.organizationId.slug,
+                    platformStatus: activeEmployment.organizationId.platformStatus,
+                    organizationType: activeEmployment.organizationId.organizationType,
+                    organizationTypeLocked: Boolean(activeEmployment.organizationId.organizationTypeLocked),
+                },
+                role: activeEmployment.roleId?.name || null,
+            });
+        }
+
+        if (!latestRequest) {
+            return res.json({
+                state: 'NO_REQUEST',
+                modulesUnlocked: false,
+                request: null,
+            });
+        }
+
+        const mappedState = latestRequest.status === 'PENDING'
+            ? 'PENDING'
+            : latestRequest.status === 'REJECTED'
+                ? 'REJECTED'
+                : 'APPROVED';
+
+        return res.json({
+            state: mappedState,
+            modulesUnlocked: false,
+            request: {
+                id: latestRequest._id,
+                organizationName: latestRequest.organizationName,
+                organizationType: latestRequest.organizationType,
+                industryType: latestRequest.industryType,
+                companySize: latestRequest.companySize,
+                description: latestRequest.description,
+                status: latestRequest.status,
+                rejectionReason: latestRequest.decision?.reason || '',
+                revision: latestRequest.revision,
+                createdAt: latestRequest.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error('Auth getMyOrganizationRequestState error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.submitOrganizationRequest = async (req, res) => {
+    try {
+        const { error, value } = organizationRequestSchema.validate(req.body);
+        if (error) return res.status(400).json({ message: error.details[0].message });
+
+        const request = await createOrganizationRequestForUser({
+            userId: req.user.id,
+            payload: value,
+        });
+        await notifySuperAdminsForOrganizationRequest(request);
+
+        res.status(201).json({
+            message: 'Organization request submitted for SuperAdmin review',
+            request,
+        });
+    } catch (error) {
+        if (error.message && error.message.includes('pending organization request')) {
+            return res.status(409).json({ message: error.message });
+        }
+        console.error('Auth submitOrganizationRequest error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.getMyOrganizationRequests = async (req, res) => {
+    try {
+        const rows = await OrganizationRequest.find({
+            requestedByUserId: req.user.id,
+        })
+            .sort('-createdAt')
+            .limit(20)
+            .lean();
+
+        res.json({ requests: rows });
+    } catch (error) {
+        console.error('Auth getMyOrganizationRequests error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.getOrganizationTypeTemplates = async (req, res) => {
+    try {
+        const seen = new Set();
+        const organizationTypes = getOrganizationTemplates().filter((item) => {
+            const key = String(item.name || '').toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        res.json({
+            organizationTypes: organizationTypes.map((item) => ({
+                type: item.type,
+                name: item.name,
+                levels: item.levels,
+                reportingExample: item.reportingExample,
+                departments: item.departments,
+                roleBehavior: item.roleBehavior,
+            })),
+        });
+    } catch (error) {
+        console.error('Auth getOrganizationTypeTemplates error', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

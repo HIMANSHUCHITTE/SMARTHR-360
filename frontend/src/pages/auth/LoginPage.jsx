@@ -72,7 +72,13 @@ const LoginPage = () => {
                 emailOtp,
             });
 
-            setAuth(data.user, data.accessToken, data.organization || null, data.panel || null);
+            setAuth(
+                data.user,
+                data.accessToken,
+                data.organization || null,
+                data.panel || null,
+                data.organizationRequestStatus || null
+            );
             setRedirectInfo({ panel: data.panel, path: data.redirectPath || '/dashboard' });
             setStep(3);
 

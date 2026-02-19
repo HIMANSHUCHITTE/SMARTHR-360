@@ -27,7 +27,7 @@ class NotificationService {
     }
 
     async getUserNotifications(userId) {
-        return Notification.find({ userId }).sort('-createdAt').limit(20);
+        return Notification.find({ userId }).sort('-createdAt').limit(20).lean();
     }
 }
 

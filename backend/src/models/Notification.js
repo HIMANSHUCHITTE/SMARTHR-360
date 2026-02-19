@@ -27,6 +27,8 @@ const notificationSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+notificationSchema.index({ userId: 1, createdAt: -1 });
+
 notificationSchema.plugin(attachStructuredMirror('Notification'));
 
 module.exports = mongoose.model('Notification', notificationSchema);

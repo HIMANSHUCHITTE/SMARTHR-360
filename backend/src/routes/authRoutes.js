@@ -9,6 +9,10 @@ const {
     logout,
     getOrganizations,
     switchOrganization,
+    getOrganizationTypeTemplates,
+    getMyOrganizationRequestState,
+    getMyOrganizationRequests,
+    submitOrganizationRequest,
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/authMiddleware');
 
@@ -28,8 +32,12 @@ router.post('/login', (req, res) => {
 });
 router.post('/refresh', refresh);
 router.post('/logout', logout);
+router.get('/organization-types', getOrganizationTypeTemplates);
 router.get('/organizations', protect, getOrganizations);
 router.post('/switch-organization', protect, switchOrganization);
+router.get('/organization-request/me', protect, getMyOrganizationRequestState);
+router.get('/organization-requests/me', protect, getMyOrganizationRequests);
+router.post('/organization-request', protect, submitOrganizationRequest);
 
 // Example protected route for testing
 router.get('/me', protect, (req, res) => {

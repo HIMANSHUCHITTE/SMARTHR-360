@@ -4,9 +4,9 @@ import { Loader2 } from 'lucide-react';
 
 const Button = React.forwardRef(({ className, variant = 'default', size = 'default', isLoading, children, ...props }, ref) => {
     const variants = {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        default: 'bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md hover:shadow-lg',
+        outline: 'border border-input bg-background/80 hover:bg-accent/20 hover:text-accent-foreground hover:border-primary/40',
+        ghost: 'hover:bg-accent/20 hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
     };
 

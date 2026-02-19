@@ -1,33 +1,44 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-    LayoutDashboard, Building2, Users, Shield, DollarSign, BrainCircuit, Network, TrendingUp, Rss, User, Settings, LifeBuoy, MessageCircle,
+    LayoutDashboard, Building2, Users, Rss, User, Settings, LifeBuoy,
 } from 'lucide-react';
 import PanelShell from './PanelShell';
+import { useAuthStore } from '../store/authStore';
 
-const menuItems = [
+const fullMenuItems = [
     { label: 'Dashboard', path: '/owner/dashboard', icon: LayoutDashboard },
     { label: 'Profile', path: '/owner/profile', icon: User },
     { label: 'Organization', path: '/owner/organization', icon: Building2 },
-    { label: 'Employees', path: '/owner/employees', icon: Users },
-    { label: 'Roles', path: '/owner/roles', icon: Shield },
-    { label: 'Payroll', path: '/owner/payroll', icon: DollarSign },
-    { label: 'Recruitment', path: '/owner/recruitment', icon: BrainCircuit },
-    { label: 'Org Chart', path: '/owner/org-chart', icon: Network },
-    { label: 'Performance', path: '/owner/performance', icon: TrendingUp },
     { label: 'Feed', path: '/owner/feed', icon: Rss },
     { label: 'Network', path: '/owner/network', icon: Users },
-    { label: 'Chat', path: '/owner/chat', icon: MessageCircle },
     { label: 'Help', path: '/owner/help', icon: LifeBuoy },
     { label: 'Settings', path: '/owner/settings', icon: Settings },
 ];
 
-const OwnerLayout = () => (
-    <PanelShell
-        panelName="Owner Panel"
-        brand="SMARTHR-360"
-        subtitle="Company Control Center"
-        menuItems={menuItems}
-    />
-);
+const onboardingMenuItems = [
+    { label: 'Dashboard', path: '/owner/dashboard', icon: LayoutDashboard },
+    { label: 'Profile', path: '/owner/profile', icon: User },
+    { label: 'Help', path: '/owner/help', icon: LifeBuoy },
+    { label: 'Settings', path: '/owner/settings', icon: Settings },
+];
+
+const OwnerLayout = () => {
+    const organization = useAuthStore((state) => state.organization);
+    const hasApprovedOrganization = Boolean(organization?.id || organization?._id);
+
+    const menuItems = useMemo(
+        () => (hasApprovedOrganization ? fullMenuItems : onboardingMenuItems),
+        [hasApprovedOrganization]
+    );
+
+    return (
+        <PanelShell
+            panelName="Owner Panel"
+            brand="SMARTHR-360"
+            subtitle={hasApprovedOrganization ? 'Company Control Center' : 'Organization Approval Onboarding'}
+            menuItems={menuItems}
+        />
+    );
+};
 
 export default OwnerLayout;

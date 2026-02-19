@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, LogOut, Search, Bell, Moon, Sun, User, ArrowLeft, X } from 'lucide-react';
+import { Menu, LogOut, Search, Bell, Moon, Sun, User, ArrowLeft, X, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/Button';
@@ -80,6 +80,13 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
         if (panel === 'SUPERADMIN') return '/superadmin/settings';
         return '/user/settings';
     }, [panel]);
+
+    const chatPath = useMemo(() => {
+        if (panel === 'OWNER') return '/owner/chat';
+        if (panel === 'SUBADMIN') return '/subadmin/chat';
+        if (panel === 'EMPLOYEE') return '/subadmin/chat';
+        return '/user/chat';
+    }, [panel]);
     const isPanelMainPage = location.pathname.endsWith('/dashboard');
     const showMenuText = isDesktop ? isSidebarOpen : true;
 
@@ -108,6 +115,10 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
 
     return (
         <div className="relative flex min-h-screen overflow-hidden">
+            <div className="pointer-events-none absolute inset-0 -z-10">
+                <div className="absolute -left-24 -top-16 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+                <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
+            </div>
             {!isDesktop && isSidebarOpen && (
                 <button
                     type="button"
@@ -150,8 +161,8 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
                                 if (!isDesktop) setIsSidebarOpen(false);
                             }}
                             className={({ isActive }) => cn(
-                                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-0',
-                                isActive ? 'bg-gradient-to-r from-primary/20 via-accent/15 to-transparent text-primary shadow-sm' : 'text-muted-foreground hover:bg-secondary/55 hover:text-foreground'
+                                'nav-pill flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-0',
+                                isActive ? 'bg-gradient-to-r from-primary/20 via-accent/15 to-transparent text-primary shadow-sm ring-1 ring-primary/30' : 'text-muted-foreground hover:bg-secondary/55 hover:text-foreground'
                             )}
                         >
                             <item.icon className="h-4 w-4" />
@@ -179,7 +190,7 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
             </aside>
 
             <div className="flex min-w-0 flex-1 flex-col">
-                <header className="relative z-30 flex h-16 items-center justify-between border-b bg-card/80 px-3 backdrop-blur-xl sm:px-4 lg:px-6">
+                <header className="sticky top-0 z-50 shrink-0 flex h-16 items-center justify-between border-b bg-card/92 px-3 shadow-sm backdrop-blur-xl sm:px-4 lg:px-6">
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         {!isPanelMainPage && (
                             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} title="Go Back">
@@ -208,6 +219,17 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
                         <Button variant="ghost" size="icon" onClick={runSearch}>
                             <Search className="h-4 w-4" />
                         </Button>
+                        {panel !== 'SUPERADMIN' && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Chat"
+                                onClick={() => navigate(chatPath)}
+                                className={location.pathname === chatPath ? 'text-primary' : ''}
+                            >
+                                <MessageCircle className="h-4 w-4" />
+                            </Button>
+                        )}
                         <div className="relative">
                             <Button
                                 variant="ghost"

@@ -40,6 +40,9 @@ const applicationSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+applicationSchema.index({ organizationId: 1, status: 1, createdAt: -1 });
+applicationSchema.index({ jobId: 1, aiScore: -1 });
+
 applicationSchema.plugin(attachStructuredMirror('Application'));
 
 module.exports = mongoose.model('Application', applicationSchema);

@@ -10,7 +10,22 @@ const postSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    attachments: [{
+        type: {
+            type: String,
+            enum: ['IMAGE', 'VIDEO'],
+            required: true,
+        },
+        url: {
+            type: String,
+            required: true,
+        },
+    }],
     likes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    dislikes: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
@@ -22,5 +37,8 @@ const postSchema = new mongoose.Schema({
 }, {
     timestamps: true,
 });
+
+postSchema.index({ createdAt: -1 });
+postSchema.index({ authorId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Post', postSchema);

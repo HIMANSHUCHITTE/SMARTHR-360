@@ -46,12 +46,18 @@ if (config.env === 'development') {
     app.use(morgan('dev'));
 }
 
-// Sync Postgres Models (Dev only)
-const PayrollRecord = require('./models/postgres/PayrollRecord');
-const LoginAudit = require('./models/postgres/LoginAudit');
-const StructuredEntity = require('./models/postgres/StructuredEntity');
 const { sequelize, mongoose } = require('./config/db');
-sequelize.sync({ alter: true }).then(() => console.log('✅ Postgres Synced')).catch(err => console.log('❌ PG Sync Error:', err));
+if (config.pgSyncOnBoot) {
+    // Model registration for optional sync flow.
+    require('./models/postgres/PayrollRecord');
+    require('./models/postgres/LoginAudit');
+    require('./models/postgres/StructuredEntity');
+
+    sequelize
+        .sync({ alter: config.pgSyncAlterOnBoot })
+        .then(() => console.log('✅ Postgres Sync completed'))
+        .catch((err) => console.log('❌ PG Sync Error:', err));
+}
 
 // Routes
 app.use('/api/auth', authRoutes);

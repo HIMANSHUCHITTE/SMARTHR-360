@@ -11,23 +11,27 @@ const AdminDashboard = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [organizations, setOrganizations] = useState([]);
+    const [organizationRequests, setOrganizationRequests] = useState([]);
     const [tickets, setTickets] = useState([]);
     const [announcement, setAnnouncement] = useState({ title: '', message: '' });
     const [busyOrg, setBusyOrg] = useState('');
+    const [busyRequest, setBusyRequest] = useState('');
     const [busyTicket, setBusyTicket] = useState('');
     const [message, setMessage] = useState('');
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
-            const [analyticsResp, orgResp, ticketResp] = await Promise.all([
+            const [analyticsResp, orgResp, ticketResp, requestResp] = await Promise.all([
                 api.get('/admin/analytics'),
                 api.get('/admin/organizations'),
                 api.get('/admin/tickets'),
+                api.get('/admin/organization-requests?status=PENDING'),
             ]);
             setStats(analyticsResp.data);
             setOrganizations(orgResp.data || []);
             setTickets(ticketResp.data || []);
+            setOrganizationRequests(requestResp.data || []);
         } catch (error) {
             console.error('Failed to fetch admin data:', error);
             setMessage(error.response?.data?.message || 'Failed to load admin dashboard');
@@ -65,6 +69,34 @@ const AdminDashboard = () => {
             setMessage(error.response?.data?.message || 'Failed to update ticket');
         } finally {
             setBusyTicket('');
+        }
+    };
+
+    const approveRequest = async (id) => {
+        setBusyRequest(id);
+        setMessage('');
+        try {
+            await api.post(`/admin/organization-requests/${id}/approve`, {});
+            await fetchAll();
+            setMessage('Organization request approved and company provisioned.');
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to approve request');
+        } finally {
+            setBusyRequest('');
+        }
+    };
+
+    const rejectRequest = async (id) => {
+        setBusyRequest(id);
+        setMessage('');
+        try {
+            await api.post(`/admin/organization-requests/${id}/reject`, { reason: 'Rejected by SuperAdmin review' });
+            await fetchAll();
+            setMessage('Organization request rejected.');
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to reject request');
+        } finally {
+            setBusyRequest('');
         }
     };
 
@@ -121,6 +153,35 @@ const AdminDashboard = () => {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
+                <div className="glass-card interactive-card p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="font-semibold flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-primary" /> Pending Organization Requests</h3>
+                        <Button variant="ghost" size="sm" onClick={fetchAll}><Eye className="mr-1 h-4 w-4" />Reload</Button>
+                    </div>
+                    <div className="space-y-3">
+                        {organizationRequests.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No pending organization requests.</p>
+                        ) : organizationRequests.slice(0, 8).map((item) => (
+                            <div key={item._id} className="rounded-lg border bg-background/60 p-3">
+                                <p className="font-semibold">{item.organizationName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Requested by: {item.requestedByUserId?.email || 'N/A'} | Type: {item.organizationType} | Size: {item.companySize}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">{item.industryType}</p>
+                                {item.description && <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>}
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    <Button size="sm" variant="outline" disabled={Boolean(busyRequest)} isLoading={busyRequest === item._id} onClick={() => approveRequest(item._id)}>
+                                        <Check className="mr-1 h-3.5 w-3.5" />Approve
+                                    </Button>
+                                    <Button size="sm" variant="outline" disabled={Boolean(busyRequest)} isLoading={busyRequest === item._id} onClick={() => rejectRequest(item._id)}>
+                                        <Ban className="mr-1 h-3.5 w-3.5" />Reject
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="glass-card interactive-card p-6">
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="font-semibold flex items-center gap-2"><Building2 className="h-5 w-5 text-primary" /> Company Approval / Monitoring</h3>

@@ -42,6 +42,14 @@ const RegisterPage = () => {
     const [debugOtp, setDebugOtp] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState('');
+    const [organizationTypes, setOrganizationTypes] = useState([]);
+    const [ownerOrgForm, setOwnerOrgForm] = useState({
+        organizationName: '',
+        industryType: '',
+        organizationType: '',
+        companySize: '',
+        description: '',
+    });
     const selectedPlan = (searchParams.get('plan') || 'FREE').toUpperCase();
 
     const {
@@ -77,6 +85,25 @@ const RegisterPage = () => {
             setVerificationId(storedVerificationId);
         }
     }, [logout]);
+
+    useEffect(() => {
+        const loadTypes = async () => {
+            try {
+                const { data } = await api.get('/auth/organization-types');
+                const rows = Array.isArray(data?.organizationTypes) ? data.organizationTypes : [];
+                setOrganizationTypes(rows);
+                if (rows.length > 0) {
+                    setOwnerOrgForm((prev) => ({
+                        ...prev,
+                        organizationType: prev.organizationType || rows[0].type,
+                    }));
+                }
+            } catch {
+                setOrganizationTypes([]);
+            }
+        };
+        loadTypes();
+    }, []);
 
     const submitStepOne = async (formData) => {
         setIsLoading(true);
@@ -162,10 +189,21 @@ const RegisterPage = () => {
         }
 
         try {
+            if (purpose === 'OWNER') {
+                const requiredFields = ['organizationName', 'industryType', 'organizationType', 'companySize'];
+                const missing = requiredFields.some((field) => !String(ownerOrgForm[field] || '').trim());
+                if (missing) {
+                    setIsLoading(false);
+                    setServerMessage('Please complete organization request details for Owner registration.');
+                    return;
+                }
+            }
+
             const { data } = await api.post('/auth/register/complete', {
                 verificationId: currentVerificationId,
                 purpose,
                 preferredPlan: selectedPlan,
+                ...(purpose === 'OWNER' ? ownerOrgForm : {}),
             });
             setServerMessage(data.message || 'Registration completed');
             sessionStorage.removeItem(REGISTER_VERIFICATION_ID_KEY);
@@ -355,6 +393,61 @@ const RegisterPage = () => {
                                 User
                             </label>
                         </div>
+
+                        {purpose === 'OWNER' && (
+                            <div className="mt-4 grid gap-3">
+                                <div className="grid gap-1">
+                                    <Label htmlFor="organizationName">Organization Name</Label>
+                                    <Input
+                                        id="organizationName"
+                                        value={ownerOrgForm.organizationName}
+                                        onChange={(e) => setOwnerOrgForm((s) => ({ ...s, organizationName: e.target.value }))}
+                                        placeholder="Enter organization name"
+                                    />
+                                </div>
+                                <div className="grid gap-1">
+                                    <Label htmlFor="industryType">Industry Type</Label>
+                                    <Input
+                                        id="industryType"
+                                        value={ownerOrgForm.industryType}
+                                        onChange={(e) => setOwnerOrgForm((s) => ({ ...s, industryType: e.target.value }))}
+                                        placeholder="IT Services, Education, Healthcare..."
+                                    />
+                                </div>
+                                <div className="grid gap-1">
+                                    <Label htmlFor="organizationType">Organization Type</Label>
+                                    <select
+                                        id="organizationType"
+                                        className="h-10 rounded-md border bg-background px-3 text-sm"
+                                        value={ownerOrgForm.organizationType}
+                                        onChange={(e) => setOwnerOrgForm((s) => ({ ...s, organizationType: e.target.value }))}
+                                    >
+                                        {organizationTypes.map((item) => (
+                                            <option key={item.type} value={item.type}>{item.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="grid gap-1">
+                                    <Label htmlFor="companySize">Company Size</Label>
+                                    <Input
+                                        id="companySize"
+                                        value={ownerOrgForm.companySize}
+                                        onChange={(e) => setOwnerOrgForm((s) => ({ ...s, companySize: e.target.value }))}
+                                        placeholder="1-10, 11-50, 51-200..."
+                                    />
+                                </div>
+                                <div className="grid gap-1">
+                                    <Label htmlFor="description">Description</Label>
+                                    <textarea
+                                        id="description"
+                                        className="min-h-[84px] rounded-md border bg-background p-2 text-sm"
+                                        value={ownerOrgForm.description}
+                                        onChange={(e) => setOwnerOrgForm((s) => ({ ...s, description: e.target.value }))}
+                                        placeholder="Briefly describe your organization"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
