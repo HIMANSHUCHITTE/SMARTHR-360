@@ -1,5 +1,11 @@
 const PayrollRecord = require('../models/postgres/PayrollRecord');
 const EmploymentState = require('../models/EmploymentState');
+const toNumber = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+};
+
+const sumObjectValues = (obj) => Object.values(obj || {}).reduce((sum, value) => sum + toNumber(value), 0);
 
 // @desc    Get Payroll Records for Org
 // @route   GET /api/payroll
@@ -14,6 +20,79 @@ exports.getPayrollRecords = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get My Payroll Summary
+// @route   GET /api/payroll/me
+// @access  Any authenticated org member
+exports.getMyPayrollSummary = async (req, res) => {
+    try {
+        const employment = await EmploymentState.findOne({
+            userId: req.user._id,
+            organizationId: req.organizationId,
+            status: { $in: ['ACTIVE', 'SUSPENDED', 'INVITED'] },
+        })
+            .select('_id status designation department')
+            .lean();
+
+        if (!employment) {
+            return res.status(404).json({ message: 'Employment not found for selected organization' });
+        }
+
+        const rows = await PayrollRecord.findAll({
+            where: {
+                organizationId: String(req.organizationId),
+                employeeId: String(employment._id),
+            },
+            order: [['periodEnd', 'DESC']],
+            limit: 6,
+        });
+        const payroll = rows.map((row) => (typeof row.get === 'function' ? row.get({ plain: true }) : row));
+        const latest = payroll[0] || null;
+
+        const basicSalary = latest ? toNumber(latest.basicSalary) : 0;
+        const allowanceTotal = latest ? sumObjectValues(latest.allowances) : 0;
+        const deductionTotal = latest ? sumObjectValues(latest.deductions) : 0;
+        const netPayable = latest ? toNumber(latest.netPayable) : 0;
+
+        const history = payroll
+            .slice()
+            .reverse()
+            .map((item) => ({
+                periodEnd: item.periodEnd,
+                netPayable: toNumber(item.netPayable),
+                status: item.status,
+            }));
+
+        return res.json({
+            employment: {
+                id: String(employment._id),
+                status: employment.status,
+                designation: employment.designation || '',
+                department: employment.department || '',
+            },
+            latestPayroll: latest ? {
+                id: latest.id,
+                periodStart: latest.periodStart,
+                periodEnd: latest.periodEnd,
+                status: latest.status,
+                basicSalary,
+                allowanceTotal,
+                deductionTotal,
+                netPayable,
+            } : null,
+            salaryBreakdown: {
+                basicSalary,
+                allowanceTotal,
+                deductionTotal,
+                netPayable,
+            },
+            history,
+        });
+    } catch (error) {
+        console.error('getMyPayrollSummary error', error);
+        return res.status(500).json({ message: 'Server Error' });
     }
 };
 

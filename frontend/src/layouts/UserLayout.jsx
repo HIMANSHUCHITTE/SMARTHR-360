@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, User, Rss, Users, Settings, LifeBuoy, Briefcase, MessageCircle, Bell, Upload } from 'lucide-react';
+import { LayoutDashboard, User, Rss, Users, Settings, LifeBuoy, Briefcase, Bell, Upload } from 'lucide-react';
 import PanelShell from './PanelShell';
 
 const menuItems = [
@@ -10,7 +10,6 @@ const menuItems = [
     { label: 'Feed', path: '/user/feed', icon: Rss },
     { label: 'Network', path: '/user/network', icon: Users },
     { label: 'Notifications', path: '/user/notifications', icon: Bell },
-    { label: 'Chat', path: '/user/chat', icon: MessageCircle },
     { label: 'Help', path: '/user/help', icon: LifeBuoy },
     { label: 'Settings', path: '/user/settings', icon: Settings },
 ];

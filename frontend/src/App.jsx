@@ -155,7 +155,6 @@ function App() {
           <Route path="content-upload" element={<FeedPage />} />
           <Route path="feed" element={<FeedBrowsePage />} />
           <Route path="network" element={<NetworkPage />} />
-          <Route path="chat" element={<ChatPage />} />
           <Route path="help" element={<HelpPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />

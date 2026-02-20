@@ -2,9 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Activity,
     Briefcase,
+    CalendarCheck2,
     CheckCircle2,
+    Clock3,
     MessageSquare,
+    PieChart,
     Users,
+    Wallet,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -18,6 +22,64 @@ const emptyRequestForm = {
     organizationType: 'CORPORATE_IT',
     companySize: '',
     description: '',
+};
+
+const clampPercent = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    return Math.max(0, Math.min(100, num));
+};
+
+const toNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+};
+
+const getRecentMonths = (count = 6) => {
+    const months = [];
+    const now = new Date();
+    for (let i = count - 1; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+            key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+            label: d.toLocaleString('en-US', { month: 'short' }),
+        });
+    }
+    return months;
+};
+
+const getAttendanceWeight = (status) => {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized === 'PRESENT' || normalized === 'LATE') return 1;
+    if (normalized === 'HALF_DAY') return 0.5;
+    return 0;
+};
+
+const getLeaveDays = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+    const ms = end.setHours(0, 0, 0, 0) - start.setHours(0, 0, 0, 0);
+    const days = Math.floor(ms / 86400000) + 1;
+    return days > 0 ? days : 0;
+};
+
+const formatCurrencyCompact = (value) => {
+    const amount = toNumber(value);
+    if (!amount) return 'N/A';
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+    }).format(amount);
+};
+
+const leaveTypeLabel = {
+    CASUAL: 'Casual Leave',
+    SICK: 'Sick Leave',
+    EARNED: 'Earned Leave',
+    UNPAID: 'Unpaid Leave',
 };
 
 const DashboardHome = () => {
@@ -35,11 +97,17 @@ const DashboardHome = () => {
     const [loadingRequestState, setLoadingRequestState] = useState(false);
     const [requestSubmitting, setRequestSubmitting] = useState(false);
     const [requestError, setRequestError] = useState('');
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+    const [analyticsError, setAnalyticsError] = useState('');
+    const [attendanceLogs, setAttendanceLogs] = useState([]);
+    const [leaveLogs, setLeaveLogs] = useState([]);
+    const [payrollSummary, setPayrollSummary] = useState(null);
 
     const firstName = user?.profile?.firstName || 'User';
     const activePanel = panel || (user?.isSuperAdmin ? 'SUPERADMIN' : organization ? 'SUBADMIN' : 'USER');
     const hasActiveOrganization = Boolean(organization?.id || organization?._id);
-    const needsOrganizationOnboarding = !hasActiveOrganization && ['OWNER', 'USER'].includes(activePanel);
+    const needsOrganizationOnboarding = !hasActiveOrganization && activePanel === 'OWNER';
+    const isUserPanel = activePanel === 'USER';
 
     useEffect(() => {
         if (!needsOrganizationOnboarding) return;
@@ -97,6 +165,55 @@ const DashboardHome = () => {
         const intervalId = setInterval(() => loadOwnerState({ silent: true }), 15000);
         return () => clearInterval(intervalId);
     }, [needsOrganizationOnboarding, setOrganization, setOrganizationRequestStatus]);
+
+    useEffect(() => {
+        if (!isUserPanel) return;
+        if (!hasActiveOrganization) {
+            setAttendanceLogs([]);
+            setLeaveLogs([]);
+            setPayrollSummary(null);
+            setAnalyticsError('Organization context missing. Join or switch organization to view live analytics.');
+            return;
+        }
+
+        const loadUserAnalytics = async () => {
+            setAnalyticsLoading(true);
+            setAnalyticsError('');
+            try {
+                const [attendanceResp, leavesResp, payrollResp] = await Promise.allSettled([
+                    api.get('/attendance/me'),
+                    api.get('/leaves/me'),
+                    api.get('/payroll/me'),
+                ]);
+
+                setAttendanceLogs(
+                    attendanceResp.status === 'fulfilled' && Array.isArray(attendanceResp.value.data)
+                        ? attendanceResp.value.data
+                        : []
+                );
+                setLeaveLogs(
+                    leavesResp.status === 'fulfilled' && Array.isArray(leavesResp.value.data)
+                        ? leavesResp.value.data
+                        : []
+                );
+                setPayrollSummary(payrollResp.status === 'fulfilled' ? (payrollResp.value.data || null) : null);
+
+                const allFailed =
+                    attendanceResp.status === 'rejected' &&
+                    leavesResp.status === 'rejected' &&
+                    payrollResp.status === 'rejected';
+                if (allFailed) {
+                    setAnalyticsError('Unable to load analytics right now.');
+                }
+            } catch (error) {
+                setAnalyticsError(error?.response?.data?.message || 'Unable to load analytics');
+            } finally {
+                setAnalyticsLoading(false);
+            }
+        };
+
+        loadUserAnalytics();
+    }, [isUserPanel, hasActiveOrganization]);
 
     const submitOrganizationRequest = async () => {
         setRequestError('');
@@ -167,6 +284,264 @@ const DashboardHome = () => {
     }, [ownerRequestState]);
 
     const pageContainerClass = 'mx-auto w-full max-w-4xl space-y-6 xl:max-w-6xl 2xl:max-w-7xl';
+
+    const profileSummary = useMemo(() => {
+        const profile = user?.profile || {};
+        const employment = user?.employment || {};
+        return [
+            { label: 'Name', value: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || 'Not added' },
+            { label: 'Email', value: user?.email || 'Not added' },
+            { label: 'Phone', value: profile.phone || 'Not added' },
+            { label: 'Designation', value: payrollSummary?.employment?.designation || employment.designation || 'Pending update' },
+            { label: 'Department', value: payrollSummary?.employment?.department || employment.department || 'Pending assignment' },
+            { label: 'Location', value: employment.location || profile.location || 'Not added' },
+        ];
+    }, [user, payrollSummary]);
+
+    const attendanceSeries = useMemo(() => {
+        const months = getRecentMonths(6);
+        const monthMap = new Map(months.map((month) => [month.key, { weighted: 0, total: 0 }]));
+
+        attendanceLogs.forEach((log) => {
+            const d = new Date(log.date);
+            if (Number.isNaN(d.getTime())) return;
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!monthMap.has(key)) return;
+            const entry = monthMap.get(key);
+            entry.weighted += getAttendanceWeight(log.status);
+            entry.total += 1;
+        });
+
+        return months.map((month) => {
+            const bucket = monthMap.get(month.key);
+            const rate = bucket.total > 0 ? Math.round((bucket.weighted / bucket.total) * 100) : 0;
+            return {
+                month: month.label,
+                rate: clampPercent(rate),
+                hasData: bucket.total > 0,
+            };
+        });
+    }, [attendanceLogs]);
+
+    const attendanceScore = useMemo(() => {
+        const latest = attendanceSeries[attendanceSeries.length - 1];
+        return latest?.rate || 0;
+    }, [attendanceSeries]);
+
+    const leaveUsage = useMemo(() => {
+        const year = new Date().getFullYear();
+        const tally = {
+            CASUAL: 0,
+            SICK: 0,
+            EARNED: 0,
+            UNPAID: 0,
+        };
+
+        leaveLogs.forEach((row) => {
+            const type = String(row?.type || '').toUpperCase();
+            if (!Object.prototype.hasOwnProperty.call(tally, type)) return;
+            if (String(row?.status || '').toUpperCase() !== 'APPROVED') return;
+            const start = new Date(row.startDate);
+            if (Number.isNaN(start.getTime()) || start.getFullYear() !== year) return;
+            tally[type] += getLeaveDays(row.startDate, row.endDate);
+        });
+
+        return Object.keys(tally).map((type) => ({
+            type,
+            label: leaveTypeLabel[type] || `${type} Leave`,
+            usedDays: tally[type],
+            colorClass:
+                type === 'CASUAL'
+                    ? 'bg-blue-500'
+                    : type === 'SICK'
+                        ? 'bg-emerald-500'
+                        : type === 'EARNED'
+                            ? 'bg-amber-500'
+                            : 'bg-slate-500',
+        }));
+    }, [leaveLogs]);
+
+    const maxLeaveUsageDays = useMemo(
+        () => Math.max(...leaveUsage.map((row) => row.usedDays), 1),
+        [leaveUsage]
+    );
+
+    const totalApprovedLeaveDays = useMemo(
+        () => leaveUsage.reduce((sum, row) => sum + row.usedDays, 0),
+        [leaveUsage]
+    );
+
+    const salaryBreakdown = useMemo(() => {
+        const basic = toNumber(payrollSummary?.salaryBreakdown?.basicSalary);
+        const allowances = toNumber(payrollSummary?.salaryBreakdown?.allowanceTotal);
+        const deductions = toNumber(payrollSummary?.salaryBreakdown?.deductionTotal);
+        const total = basic + allowances + deductions;
+
+        const rows = [
+            { label: 'Base', value: basic, color: '#2563eb' },
+            { label: 'Allowances', value: allowances, color: '#16a34a' },
+            { label: 'Deductions', value: deductions, color: '#dc2626' },
+        ];
+
+        return rows.map((row) => ({
+            ...row,
+            percent: total > 0 ? clampPercent((row.value / total) * 100) : 0,
+        }));
+    }, [payrollSummary]);
+
+    const pieBackground = useMemo(() => {
+        const totalPercent = salaryBreakdown.reduce((sum, slice) => sum + slice.percent, 0);
+        if (totalPercent <= 0) {
+            return 'conic-gradient(#e2e8f0 0deg 360deg)';
+        }
+
+        let currentStart = 0;
+        const slices = salaryBreakdown.map((item) => {
+            const next = currentStart + item.percent * 3.6;
+            const slice = `${item.color} ${currentStart}deg ${next}deg`;
+            currentStart = next;
+            return slice;
+        });
+        return `conic-gradient(${slices.join(', ')})`;
+    }, [salaryBreakdown]);
+
+    if (isUserPanel) {
+        return (
+            <div className={pageContainerClass}>
+                <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-sm">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-cyan-50 via-sky-50 to-blue-100 dark:from-cyan-900/20 dark:via-sky-900/20 dark:to-blue-900/20"></div>
+                    <div className="relative z-10 space-y-3">
+                        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome back, {firstName}</h1>
+                        <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
+                            Profile summary aur analytics ab live organization records se aa rahe hain.
+                        </p>
+                    </div>
+                </div>
+
+                {analyticsError && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                        {analyticsError}
+                    </div>
+                )}
+
+                <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-border bg-card p-5">
+                        <p className="text-sm text-muted-foreground">Attendance Score</p>
+                        <div className="mt-2 flex items-end justify-between">
+                            <p className="text-3xl font-bold">{attendanceScore}%</p>
+                            <CalendarCheck2 className="h-7 w-7 text-blue-600" />
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-card p-5">
+                        <p className="text-sm text-muted-foreground">Approved Leaves (YTD)</p>
+                        <div className="mt-2 flex items-end justify-between">
+                            <p className="text-3xl font-bold">{totalApprovedLeaveDays}</p>
+                            <Clock3 className="h-7 w-7 text-emerald-600" />
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-card p-5">
+                        <p className="text-sm text-muted-foreground">Latest Net Pay</p>
+                        <div className="mt-2 flex items-end justify-between">
+                            <p className="text-3xl font-bold">{formatCurrencyCompact(payrollSummary?.salaryBreakdown?.netPayable)}</p>
+                            <Wallet className="h-7 w-7 text-amber-600" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-border bg-card p-6">
+                        <h2 className="mb-4 text-lg font-semibold">Profile Summary</h2>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {profileSummary.map((item) => (
+                                <div key={item.label} className="rounded-xl border border-border/70 bg-background/60 p-3">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                                    <p className="mt-1 text-sm font-medium text-foreground">{item.value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-border bg-card p-6">
+                        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                            <Activity className="h-5 w-5 text-blue-600" /> Attendance Graph
+                        </h2>
+                        <div className="flex h-56 items-end justify-between gap-3">
+                            {attendanceSeries.map((point) => (
+                                <div key={point.month} className="flex flex-1 flex-col items-center gap-2">
+                                    <div className="flex h-full w-full items-end rounded-full bg-slate-100 dark:bg-slate-800">
+                                        <div
+                                            className="w-full rounded-full bg-gradient-to-t from-blue-600 to-cyan-400"
+                                            style={{ height: `${Math.max(point.rate, point.hasData ? 8 : 0)}%` }}
+                                        ></div>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{point.month}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-border bg-card p-6">
+                        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Leave Usage Chart
+                        </h2>
+                        <div className="space-y-4">
+                            {leaveUsage.map((leave) => {
+                                const usedPercent = clampPercent((leave.usedDays / maxLeaveUsageDays) * 100);
+                                return (
+                                    <div key={leave.type}>
+                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                            <p className="font-medium">{leave.label}</p>
+                                            <p className="text-muted-foreground">{leave.usedDays} day(s)</p>
+                                        </div>
+                                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                            <div className={`h-full rounded-full ${leave.colorClass}`} style={{ width: `${usedPercent}%` }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-border bg-card p-6">
+                        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                            <PieChart className="h-5 w-5 text-amber-600" /> Salary Breakdown
+                        </h2>
+                        <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start sm:justify-between">
+                            <div
+                                className="relative h-44 w-44 rounded-full"
+                                style={{ background: pieBackground }}
+                                aria-label="Salary breakdown pie chart"
+                            >
+                                <div className="absolute inset-8 rounded-full bg-card"></div>
+                            </div>
+                            <div className="w-full space-y-2 sm:max-w-[220px]">
+                                {salaryBreakdown.map((slice) => (
+                                    <div key={slice.label} className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: slice.color }}></span>
+                                            <span>{slice.label}</span>
+                                        </div>
+                                        <span className="font-medium">
+                                            {slice.percent ? `${slice.percent.toFixed(1)}%` : '0%'}
+                                        </span>
+                                    </div>
+                                ))}
+                                {!payrollSummary?.latestPayroll && (
+                                    <p className="pt-1 text-xs text-muted-foreground">No payroll record found for this user.</p>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                {analyticsLoading && (
+                    <p className="text-sm text-muted-foreground">Loading live analytics...</p>
+                )}
+            </div>
+        );
+    }
 
     if (needsOrganizationOnboarding) {
         return (
@@ -287,8 +662,8 @@ const DashboardHome = () => {
                     Recent Activity
                 </h3>
                 <div className="space-y-6">
-                    {activities.map((item, index) => (
-                        <div key={index} className="group flex items-center gap-4">
+                    {activities.map((item) => (
+                        <div key={item.action} className="group flex items-center gap-4">
                             <div className={`h-3 w-3 ${item.color} rounded-full ring-4 ring-slate-100 transition-all group-hover:ring-slate-200 dark:ring-slate-700/40 dark:group-hover:ring-slate-600/50`}></div>
                             <div>
                                 <p className="text-sm font-medium text-foreground">{item.action}</p>
