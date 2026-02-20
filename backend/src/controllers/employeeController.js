@@ -24,6 +24,8 @@ const FALLBACK_ROLE_LEVELS = {
 
 const normalizeId = (value) => (value ? String(value) : null);
 const normalizeRole = (value) => String(value || '').trim().toLowerCase();
+const isOwnerRole = (value) => normalizeRole(value) === 'owner';
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const toNumber = (value) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
@@ -72,8 +74,18 @@ const getViewerEmployment = (userId, organizationId) => EmploymentState.findOne(
     status: { $in: VIEWABLE_STATUSES },
 }).select('_id').lean();
 
+const findRoleByName = (organizationId, roleName) => {
+    const normalizedName = String(roleName || '').trim();
+    if (!normalizedName) return null;
+
+    return Role.findOne({
+        organizationId,
+        name: { $regex: new RegExp(`^${escapeRegex(normalizedName)}$`, 'i') },
+    });
+};
+
 const canViewerManageTarget = (req, viewerEmployment, descendantSet, targetEmploymentId) => {
-    if (req.userRole === 'Owner') return true;
+    if (isOwnerRole(req.userRole)) return true;
     if (!viewerEmployment) return false;
 
     return descendantSet.has(normalizeId(targetEmploymentId));
@@ -84,7 +96,7 @@ const canViewerManageTarget = (req, viewerEmployment, descendantSet, targetEmplo
 // @access  Any authenticated organization member (visibility scoped by hierarchy)
 exports.getEmployees = async (req, res) => {
     try {
-        if (req.userRole === 'Owner') {
+        if (isOwnerRole(req.userRole)) {
             const employees = await EmploymentState.find({
                 organizationId: req.organizationId,
                 status: { $in: VIEWABLE_STATUSES },
@@ -191,7 +203,7 @@ exports.addEmployee = async (req, res) => {
 
     try {
         const viewerEmployment = await getViewerEmployment(req.user._id, req.organizationId);
-        if (req.userRole !== 'Owner' && !viewerEmployment) {
+        if (!isOwnerRole(req.userRole) && !viewerEmployment) {
             return res.status(403).json({ message: 'Active employment not found for this organization' });
         }
 
@@ -205,7 +217,7 @@ exports.addEmployee = async (req, res) => {
             : new Set();
 
         // 1. Resolve Role
-        let role = await Role.findOne({ organizationId: req.organizationId, name: roleName });
+        let role = await findRoleByName(req.organizationId, roleName);
         if (!role) {
             // Fallback for system roles if not in DB yet (should be seeded, but for safety)
             // Or return error
@@ -271,7 +283,7 @@ exports.addEmployee = async (req, res) => {
             }
         }
 
-        if (req.userRole !== 'Owner') {
+        if (!isOwnerRole(req.userRole)) {
             if (!managerEmploymentId) {
                 managerEmploymentId = viewerEmployment._id;
             }
@@ -322,7 +334,7 @@ exports.updateEmployee = async (req, res) => {
 
     try {
         const viewerEmployment = await getViewerEmployment(req.user._id, req.organizationId);
-        if (req.userRole !== 'Owner' && !viewerEmployment) {
+        if (!isOwnerRole(req.userRole) && !viewerEmployment) {
             return res.status(403).json({ message: 'Active employment not found for this organization' });
         }
 
@@ -350,25 +362,26 @@ exports.updateEmployee = async (req, res) => {
         let nextRoleLevel = normalizeLevel(targetEmployment.roleId);
 
         if (roleName) {
-            const role = await Role.findOne({ organizationId: req.organizationId, name: roleName });
-            if (role) {
-                if (RESTRICTED_ASSIGNMENT_ROLES.has(normalizeRole(role.name))) {
-                    return res.status(403).json({ message: `Role '${role.name}' cannot be assigned through employee management` });
-                }
-                updateFields.roleId = role._id;
-                nextRoleLevel = normalizeLevel(role);
+            const role = await findRoleByName(req.organizationId, roleName);
+            if (!role) {
+                return res.status(400).json({ message: `Role '${roleName}' not found in this organization.` });
+            }
+            if (RESTRICTED_ASSIGNMENT_ROLES.has(normalizeRole(role.name))) {
+                return res.status(403).json({ message: `Role '${role.name}' cannot be assigned through employee management` });
+            }
+            updateFields.roleId = role._id;
+            nextRoleLevel = normalizeLevel(role);
 
-                if (Number.isFinite(Number(role?.limits?.maxUsersPerRole)) && Number(role.limits.maxUsersPerRole) > 0) {
-                    const currentRoleCount = await EmploymentState.countDocuments({
-                        organizationId: req.organizationId,
-                        roleId: role._id,
-                        status: { $in: VIEWABLE_STATUSES },
-                    });
-                    const sameRoleBefore = normalizeId(targetEmployment.roleId?._id || targetEmployment.roleId) === normalizeId(role._id);
-                    const effectiveCount = sameRoleBefore ? currentRoleCount : currentRoleCount + 1;
-                    if (effectiveCount > Number(role.limits.maxUsersPerRole)) {
-                        return res.status(400).json({ message: `Role '${role.name}' reached max users limit (${role.limits.maxUsersPerRole})` });
-                    }
+            if (Number.isFinite(Number(role?.limits?.maxUsersPerRole)) && Number(role.limits.maxUsersPerRole) > 0) {
+                const currentRoleCount = await EmploymentState.countDocuments({
+                    organizationId: req.organizationId,
+                    roleId: role._id,
+                    status: { $in: VIEWABLE_STATUSES },
+                });
+                const sameRoleBefore = normalizeId(targetEmployment.roleId?._id || targetEmployment.roleId) === normalizeId(role._id);
+                const effectiveCount = sameRoleBefore ? currentRoleCount : currentRoleCount + 1;
+                if (effectiveCount > Number(role.limits.maxUsersPerRole)) {
+                    return res.status(400).json({ message: `Role '${role.name}' reached max users limit (${role.limits.maxUsersPerRole})` });
                 }
             }
         }
@@ -410,7 +423,7 @@ exports.updateEmployee = async (req, res) => {
                     }
                 }
 
-                if (req.userRole !== 'Owner') {
+                if (!isOwnerRole(req.userRole)) {
                     const managerId = normalizeId(reportsToEmploymentId);
                     const canAssignManager = managerId === normalizeId(viewerEmployment._id) || viewerDescendantSet.has(managerId);
                     if (!canAssignManager) {
@@ -447,7 +460,7 @@ exports.updateEmployee = async (req, res) => {
 exports.terminateEmployee = async (req, res) => {
     try {
         const viewerEmployment = await getViewerEmployment(req.user._id, req.organizationId);
-        if (req.userRole !== 'Owner' && !viewerEmployment) {
+        if (!isOwnerRole(req.userRole) && !viewerEmployment) {
             return res.status(403).json({ message: 'Active employment not found for this organization' });
         }
 

@@ -41,8 +41,10 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+        const status = error.response?.status;
+        const message = String(error.response?.data?.message || '').toLowerCase();
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
             try {
@@ -64,6 +66,23 @@ api.interceptors.response.use(
             } catch (refreshError) {
                 useAuthStore.getState().logout();
                 return Promise.reject(refreshError);
+            }
+        }
+
+        if (
+            status === 403 &&
+            (
+                message.includes('no active access to selected organization') ||
+                message.includes('organization context required') ||
+                message.includes('context missing') ||
+                message.includes('active employment not found for this organization')
+            )
+        ) {
+            const state = useAuthStore.getState();
+            state.setOrganization(null);
+            state.setPanel('USER');
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('owner-active-organization-id');
             }
         }
 
