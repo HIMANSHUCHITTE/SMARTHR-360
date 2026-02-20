@@ -2,6 +2,8 @@ const JobPosting = require('../models/JobPosting');
 const Application = require('../models/Application');
 const User = require('../models/User');
 
+const APPLICATION_STATUSES = new Set(['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'REJECTED', 'HIRED']);
+
 // --- AI Mock Service (Internal for MVP) ---
 const analyzeCandidate = (resumeText, jobRequirements) => {
     // Simple keyword matching
@@ -231,5 +233,90 @@ exports.getApplications = async (req, res) => {
         res.json(applications);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get organization-wide candidate requests/applications
+// @route   GET /api/recruitment/applications
+// @access  Owner, Admin, HR Manager, CEO
+exports.getOrganizationApplications = async (req, res) => {
+    try {
+        const status = String(req.query.status || '').trim().toUpperCase();
+        const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
+        const query = {
+            organizationId: req.organizationId,
+        };
+        if (status && APPLICATION_STATUSES.has(status)) {
+            query.status = status;
+        }
+        if (req.query.jobId) {
+            query.jobId = req.query.jobId;
+        }
+
+        const applications = await Application.find(query)
+            .populate('jobId', 'title department location status')
+            .sort('-createdAt')
+            .limit(limit);
+
+        res.json(applications);
+    } catch (error) {
+        console.error('Recruitment getOrganizationApplications error', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Update candidate request stage/interview/joining data
+// @route   PATCH /api/recruitment/applications/:id
+// @access  Owner, Admin, HR Manager, CEO
+exports.updateApplication = async (req, res) => {
+    try {
+        const application = await Application.findById(req.params.id);
+        if (!application || String(application.organizationId) !== String(req.organizationId)) {
+            return res.status(404).json({ message: 'Application not found or access denied' });
+        }
+
+        const { status, interviewAt, interviewNote, joiningDate, adminNote } = req.body || {};
+        const patch = {};
+
+        if (typeof status !== 'undefined') {
+            const normalized = String(status || '').trim().toUpperCase();
+            if (!APPLICATION_STATUSES.has(normalized)) {
+                return res.status(400).json({ message: 'Invalid status' });
+            }
+            patch.status = normalized;
+        }
+
+        if (typeof interviewAt !== 'undefined') {
+            patch.interviewAt = interviewAt ? new Date(interviewAt) : null;
+            if (patch.interviewAt && Number.isNaN(patch.interviewAt.getTime())) {
+                return res.status(400).json({ message: 'Invalid interviewAt date' });
+            }
+        }
+
+        if (typeof joiningDate !== 'undefined') {
+            patch.joiningDate = joiningDate ? new Date(joiningDate) : null;
+            if (patch.joiningDate && Number.isNaN(patch.joiningDate.getTime())) {
+                return res.status(400).json({ message: 'Invalid joiningDate' });
+            }
+        }
+
+        if (typeof interviewNote !== 'undefined') {
+            patch.interviewNote = String(interviewNote || '').trim().slice(0, 2000);
+        }
+
+        if (typeof adminNote !== 'undefined') {
+            patch.adminNote = String(adminNote || '').trim().slice(0, 2000);
+        }
+
+        const updated = await Application.findByIdAndUpdate(
+            req.params.id,
+            { $set: patch },
+            { new: true, runValidators: true }
+        ).populate('jobId', 'title department location status');
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Recruitment updateApplication error', error);
+        res.status(400).json({ message: error.message || 'Could not update application' });
     }
 };

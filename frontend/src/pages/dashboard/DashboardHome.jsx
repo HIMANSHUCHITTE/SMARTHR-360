@@ -38,10 +38,11 @@ const DashboardHome = () => {
 
     const firstName = user?.profile?.firstName || 'User';
     const activePanel = panel || (user?.isSuperAdmin ? 'SUPERADMIN' : organization ? 'SUBADMIN' : 'USER');
-    const needsOwnerOnboarding = activePanel === 'OWNER' && !organization?.id && !organization?._id;
+    const hasActiveOrganization = Boolean(organization?.id || organization?._id);
+    const needsOrganizationOnboarding = !hasActiveOrganization && ['OWNER', 'USER'].includes(activePanel);
 
     useEffect(() => {
-        if (!needsOwnerOnboarding) return;
+        if (!needsOrganizationOnboarding) return;
 
         const loadOwnerState = async ({ silent = false } = {}) => {
             if (!silent) {
@@ -95,7 +96,7 @@ const DashboardHome = () => {
         loadOwnerState();
         const intervalId = setInterval(() => loadOwnerState({ silent: true }), 15000);
         return () => clearInterval(intervalId);
-    }, [needsOwnerOnboarding, setOrganization, setOrganizationRequestStatus]);
+    }, [needsOrganizationOnboarding, setOrganization, setOrganizationRequestStatus]);
 
     const submitOrganizationRequest = async () => {
         setRequestError('');
@@ -167,13 +168,13 @@ const DashboardHome = () => {
 
     const pageContainerClass = 'mx-auto w-full max-w-4xl space-y-6 xl:max-w-6xl 2xl:max-w-7xl';
 
-    if (needsOwnerOnboarding) {
+    if (needsOrganizationOnboarding) {
         return (
             <div className={pageContainerClass}>
                 <div className="rounded-2xl border border-primary/30 bg-primary/10 p-6">
-                    <h1 className="text-2xl font-bold">Owner Onboarding</h1>
+                    <h1 className="text-2xl font-bold">Organization Onboarding</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Welcome {firstName}. Submit organization details for SuperAdmin approval.
+                        Welcome {firstName}. Organization request submit karein, approval ke baad owner workspace unlock hoga.
                     </p>
                 </div>
 

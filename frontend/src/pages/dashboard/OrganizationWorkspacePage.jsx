@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,6 +14,9 @@ import {
     CalendarDays,
     Sparkles,
     ArrowUpRight,
+    Trash2,
+    Save,
+    UserCheck,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -51,6 +54,16 @@ const itemVariants = {
     },
 };
 
+const toDateInput = (value) => {
+    if (!value) return '';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '';
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 const OrganizationWorkspacePage = () => {
     const { organizationId } = useParams();
     const navigate = useNavigate();
@@ -61,9 +74,17 @@ const OrganizationWorkspacePage = () => {
     const [kpis, setKpis] = useState(null);
     const [roles, setRoles] = useState([]);
     const [orgTemplates, setOrgTemplates] = useState([]);
+    const [applications, setApplications] = useState([]);
+    const [busyApplicationId, setBusyApplicationId] = useState('');
+    const [savingOrganization, setSavingOrganization] = useState(false);
+    const [deletingOrganization, setDeletingOrganization] = useState(false);
+    const [orgEditForm, setOrgEditForm] = useState({
+        name: '',
+        organizationType: 'CORPORATE_IT',
+    });
     const [error, setError] = useState('');
 
-    const ensureOrganizationContext = async () => {
+    const ensureOrganizationContext = useCallback(async () => {
         if (!organizationId) return;
 
         const activeId = String(organization?.id || organization?._id || '');
@@ -75,33 +96,40 @@ const OrganizationWorkspacePage = () => {
         const { data: orgData } = await api.get('/organization');
         setOrganization(orgData);
         localStorage.setItem('owner-active-organization-id', String(organizationId));
-    };
+        return orgData;
+    }, [organization?.id, organization?._id, organizationId, setOrganization, setToken]);
 
-    const loadWorkspace = async () => {
+    const loadWorkspace = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            await ensureOrganizationContext();
-            const [hierarchyResp, kpiResp, roleResp, typeResp] = await Promise.all([
+            const activeOrg = await ensureOrganizationContext();
+            const [hierarchyResp, kpiResp, roleResp, typeResp, appResp] = await Promise.all([
                 api.get('/organization/hierarchy'),
                 api.get('/owner/strategic-dashboard'),
                 api.get('/roles'),
                 api.get('/auth/organization-types'),
+                api.get('/recruitment/applications?limit=60'),
             ]);
             setHierarchy(hierarchyResp.data || null);
             setKpis(kpiResp.data || null);
             setRoles(Array.isArray(roleResp.data) ? roleResp.data : []);
             setOrgTemplates(Array.isArray(typeResp.data?.organizationTypes) ? typeResp.data.organizationTypes : []);
+            setApplications(Array.isArray(appResp.data) ? appResp.data : []);
+            setOrgEditForm({
+                name: String(activeOrg?.name || organization?.name || '').trim(),
+                organizationType: String(hierarchyResp.data?.organizationType || activeOrg?.organizationType || organization?.organizationType || 'CORPORATE_IT'),
+            });
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to open organization workspace');
         } finally {
             setLoading(false);
         }
-    };
+    }, [ensureOrganizationContext, organization?.name, organization?.organizationType]);
 
     useEffect(() => {
         loadWorkspace();
-    }, [organizationId]);
+    }, [loadWorkspace]);
 
     const hierarchyLevels = useMemo(() => {
         const configuredLevels = hierarchy?.hierarchyConfig?.customLevels;
@@ -116,6 +144,65 @@ const OrganizationWorkspacePage = () => {
         () => [...roles].sort((a, b) => Number(a.level || 999) - Number(b.level || 999)),
         [roles]
     );
+
+    const saveOrganizationBasics = async () => {
+        setSavingOrganization(true);
+        setError('');
+        try {
+            const payload = {
+                name: String(orgEditForm.name || '').trim(),
+                organizationType: String(orgEditForm.organizationType || '').trim(),
+            };
+            const { data } = await api.patch('/organization', payload);
+            setOrganization(data);
+            await loadWorkspace();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update organization');
+        } finally {
+            setSavingOrganization(false);
+        }
+    };
+
+    const deleteCurrentOrganization = async () => {
+        const orgName = String(organization?.name || '').trim();
+        if (!orgName) {
+            setError('Organization not found for delete action');
+            return;
+        }
+
+        const typed = window.prompt(`Type organization name to confirm delete: ${orgName}`);
+        if (typed === null) return;
+        if (String(typed).trim() !== orgName) {
+            setError('Organization name mismatch. Delete cancelled.');
+            return;
+        }
+
+        setDeletingOrganization(true);
+        setError('');
+        try {
+            await api.delete('/organization', { data: { confirmName: orgName } });
+            localStorage.removeItem('owner-active-organization-id');
+            setOrganization(null);
+            navigate('/owner/organization');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete organization');
+        } finally {
+            setDeletingOrganization(false);
+        }
+    };
+
+    const updateApplicationRecord = async (applicationId, patch) => {
+        setBusyApplicationId(String(applicationId));
+        setError('');
+        try {
+            const { data } = await api.patch(`/recruitment/applications/${applicationId}`, patch);
+            setApplications((prev) => prev.map((item) => (String(item._id) === String(applicationId) ? data : item)));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update candidate request');
+        } finally {
+            setBusyApplicationId('');
+        }
+    };
 
     if (loading) {
         return <div className="flex h-80 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>;
@@ -183,6 +270,129 @@ const OrganizationWorkspacePage = () => {
                         <p className="text-sm text-muted-foreground">{item.description}</p>
                     </motion.button>
                 ))}
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                    <Save className="h-5 w-5 text-primary" />
+                    Organization Edit / Delete
+                </h2>
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-1">
+                        <label className="text-sm">Organization Name</label>
+                        <input
+                            className="h-10 rounded-md border bg-background px-3 text-sm"
+                            value={orgEditForm.name}
+                            onChange={(e) => setOrgEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                            placeholder="Organization name"
+                        />
+                    </div>
+                    <div className="grid gap-1">
+                        <label className="text-sm">Organization Type</label>
+                        <select
+                            className="h-10 rounded-md border bg-background px-3 text-sm"
+                            value={orgEditForm.organizationType}
+                            onChange={(e) => setOrgEditForm((prev) => ({ ...prev, organizationType: e.target.value }))}
+                        >
+                            {orgTemplates.map((item) => (
+                                <option key={item.type} value={item.type}>{item.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                        onClick={saveOrganizationBasics}
+                        isLoading={savingOrganization}
+                        disabled={savingOrganization || deletingOrganization}
+                    >
+                        Save Organization
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="border-rose-300 text-rose-600 hover:bg-rose-50"
+                        onClick={deleteCurrentOrganization}
+                        isLoading={deletingOrganization}
+                        disabled={deletingOrganization || savingOrganization}
+                    >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Organization
+                    </Button>
+                </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                    <UserCheck className="h-5 w-5 text-primary" />
+                    User Requests: Interview / Joining
+                </h2>
+                {applications.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No user requests/applications found in this organization.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {applications.map((app) => {
+                            const isBusy = busyApplicationId === String(app._id);
+                            return (
+                                <div key={app._id} className="rounded-lg border bg-background/70 p-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p className="font-semibold">{app.candidateName}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {app.email} | Job: {app?.jobId?.title || 'N/A'} | AI Score: {app.aiScore ?? 0}
+                                            </p>
+                                        </div>
+                                        <span className="rounded-full border px-2 py-0.5 text-xs">{app.status}</span>
+                                    </div>
+
+                                    <div className="mt-3 grid gap-2 md:grid-cols-4">
+                                        <select
+                                            className="h-9 rounded-md border bg-background px-2 text-sm"
+                                            value={app.status || 'APPLIED'}
+                                            onChange={(e) => updateApplicationRecord(app._id, { status: e.target.value })}
+                                            disabled={isBusy}
+                                        >
+                                            <option value="APPLIED">APPLIED</option>
+                                            <option value="SCREENING">SCREENING</option>
+                                            <option value="INTERVIEW">INTERVIEW</option>
+                                            <option value="OFFER">OFFER</option>
+                                            <option value="HIRED">HIRED</option>
+                                            <option value="REJECTED">REJECTED</option>
+                                        </select>
+                                        <input
+                                            type="date"
+                                            className="h-9 rounded-md border bg-background px-2 text-sm"
+                                            defaultValue={toDateInput(app.interviewAt)}
+                                            onBlur={(e) => updateApplicationRecord(app._id, {
+                                                interviewAt: e.target.value || null,
+                                                status: 'INTERVIEW',
+                                            })}
+                                            disabled={isBusy}
+                                        />
+                                        <input
+                                            type="date"
+                                            className="h-9 rounded-md border bg-background px-2 text-sm"
+                                            defaultValue={toDateInput(app.joiningDate)}
+                                            onBlur={(e) => updateApplicationRecord(app._id, {
+                                                joiningDate: e.target.value || null,
+                                                status: e.target.value ? 'HIRED' : app.status,
+                                            })}
+                                            disabled={isBusy}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => updateApplicationRecord(app._id, { status: 'HIRED' })}
+                                            isLoading={isBusy}
+                                            disabled={isBusy}
+                                        >
+                                            Mark Joining
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </motion.div>
 
             <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">

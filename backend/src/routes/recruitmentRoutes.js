@@ -1,5 +1,13 @@
 const express = require('express');
-const { getJobs, createJob, applyForJob, applyRegisteredUserToJob, getApplications } = require('../controllers/recruitmentController');
+const {
+    getJobs,
+    createJob,
+    applyForJob,
+    applyRegisteredUserToJob,
+    getApplications,
+    getOrganizationApplications,
+    updateApplication,
+} = require('../controllers/recruitmentController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireTenant } = require('../middlewares/tenantMiddleware');
 const { authorizeRoles } = require('../middlewares/rbacMiddleware');
@@ -20,5 +28,7 @@ router.use(requireTenant);
 router.post('/jobs', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), createJob);
 router.post('/jobs/:id/apply-user', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), applyRegisteredUserToJob);
 router.get('/jobs/:id/applications', authorizeRoles('Owner'), getApplications);
+router.get('/applications', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), getOrganizationApplications);
+router.patch('/applications/:id', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), updateApplication);
 
 module.exports = router;

@@ -105,7 +105,9 @@ const getPanelDecision = ({ isSuperAdmin, employment, ownerRequest }) => {
     }
 
     if (!employment) {
-        if (ownerRequest) {
+        // Owner panel should only open when account actually has active owner employment.
+        // Pending/rejected owner requests should remain in USER panel experience.
+        if (ownerRequest && String(ownerRequest.status || '').toUpperCase() === 'APPROVED') {
             return { panel: 'OWNER', redirectPath: '/owner/dashboard' };
         }
         return { panel: 'USER', redirectPath: '/user/dashboard' };

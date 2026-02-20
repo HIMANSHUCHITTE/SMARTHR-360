@@ -40,6 +40,22 @@ const applicationSchema = new mongoose.Schema({
         enum: ['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'REJECTED', 'HIRED'],
         default: 'APPLIED',
     },
+    interviewAt: {
+        type: Date,
+        default: null,
+    },
+    interviewNote: {
+        type: String,
+        default: '',
+    },
+    joiningDate: {
+        type: Date,
+        default: null,
+    },
+    adminNote: {
+        type: String,
+        default: '',
+    },
 }, {
     timestamps: true,
 });

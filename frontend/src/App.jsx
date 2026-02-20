@@ -142,6 +142,13 @@ function App() {
         >
           <Route path="dashboard" element={<DashboardHome />} />
           <Route path="profile" element={<UserProfile />} />
+          <Route path="organization" element={<OrganizationSettings />} />
+          <Route path="employees" element={<EmployeeList />} />
+          <Route path="roles" element={<RolesPage />} />
+          <Route path="payroll" element={<PayrollPage />} />
+          <Route path="recruitment" element={<RecruitmentDashboard />} />
+          <Route path="org-chart" element={<OrgChartPage />} />
+          <Route path="performance" element={<PerformancePage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="leaves" element={<LeavePage />} />
           <Route path="documents" element={<DocumentsPage />} />
