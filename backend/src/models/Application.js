@@ -7,6 +7,10 @@ const applicationSchema = new mongoose.Schema({
         ref: 'JobPosting',
         required: true,
     },
+    candidateUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
     organizationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Organization',
@@ -42,6 +46,7 @@ const applicationSchema = new mongoose.Schema({
 
 applicationSchema.index({ organizationId: 1, status: 1, createdAt: -1 });
 applicationSchema.index({ jobId: 1, aiScore: -1 });
+applicationSchema.index({ jobId: 1, candidateUserId: 1 }, { unique: true, sparse: true });
 
 applicationSchema.plugin(attachStructuredMirror('Application'));
 

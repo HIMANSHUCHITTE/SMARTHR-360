@@ -62,10 +62,10 @@ const OrgChartPage = () => {
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Organization Chart</h1>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Organization Chart</h1>
                     <p className="text-muted-foreground">Live reporting tree based on actual manager mapping (no static placeholders).</p>
                 </div>
-                <Button onClick={fetchChart} className="ring-2 ring-primary/30">Refresh Chart</Button>
+                <Button onClick={fetchChart} className="w-full ring-2 ring-primary/30 sm:w-auto">Refresh Chart</Button>
             </div>
 
             {roots.length === 0 ? (
@@ -73,7 +73,7 @@ const OrgChartPage = () => {
             ) : (
                 <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
                     <div className="rounded-xl border bg-card/70 p-4 overflow-auto">
-                        <div className="min-w-[760px]">
+                        <div className="min-w-[640px] sm:min-w-[760px]">
                             <div className="flex flex-col items-center gap-8">
                                 {roots.map((root) => (
                                     <TreeNode key={root.employmentId} node={root} depth={0} selectedId={selectedId} onSelect={setSelectedId} />

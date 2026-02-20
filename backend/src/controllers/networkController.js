@@ -47,12 +47,23 @@ exports.uploadFeedMedia = async (req, res) => {
 // @access  Registered User
 exports.getFeed = async (req, res) => {
     try {
-        const feedQuery = req.organizationId
-            ? { organizationId: req.organizationId }
-            : { organizationId: null };
+        const visibilityQuery = req.organizationId
+            ? {
+                $or: [
+                    { visibility: 'PUBLIC' },
+                    { visibility: { $exists: false } }, // backward compatibility for older posts
+                    { visibility: 'ORG_ONLY', organizationId: req.organizationId },
+                ],
+            }
+            : {
+                $or: [
+                    { visibility: 'PUBLIC' },
+                    { visibility: { $exists: false } }, // backward compatibility for older posts
+                ],
+            };
 
         const [posts, me] = await Promise.all([
-            Post.find(feedQuery)
+            Post.find(visibilityQuery)
                 .populate('authorId', authorProjection)
                 .populate('comments.userId', commentAuthorProjection)
                 .sort('-createdAt')
@@ -79,6 +90,10 @@ exports.getFeed = async (req, res) => {
 exports.createPost = async (req, res) => {
     try {
         const content = String(req.body.content || '').trim();
+        const requestedVisibility = String(req.body.visibility || '').trim().toUpperCase();
+        const visibility = ['PUBLIC', 'ORG_ONLY'].includes(requestedVisibility)
+            ? requestedVisibility
+            : 'PUBLIC';
         const attachmentsInput = Array.isArray(req.body.attachments) ? req.body.attachments : [];
         const attachments = attachmentsInput
             .map((item) => ({
@@ -93,7 +108,8 @@ exports.createPost = async (req, res) => {
 
         const post = await Post.create({
             authorId: req.user._id,
-            organizationId: req.organizationId || null,
+            organizationId: visibility === 'ORG_ONLY' ? (req.organizationId || null) : null,
+            visibility,
             content,
             attachments,
         });

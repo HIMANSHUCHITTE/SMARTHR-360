@@ -184,18 +184,18 @@ const RolesPage = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Roles & Permissions</h1>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Roles & Permissions</h1>
                     <p className="text-muted-foreground">Owner can decide module access and limits for each role.</p>
                 </div>
-                <Button onClick={() => setIsCreating(!isCreating)}>
+                <Button className="w-full sm:w-auto" onClick={() => setIsCreating(!isCreating)}>
                     <Plus className="mr-2 h-4 w-4" /> Create Role
                 </Button>
             </div>
 
             {isCreating && (
-                <div className="glass-card p-6 rounded-xl animate-in fade-in slide-in-from-top-4">
+                <div className="glass-card animate-in fade-in slide-in-from-top-4 rounded-xl p-4 sm:p-6">
                     <form onSubmit={handleCreateRole} className="grid gap-3 md:grid-cols-3 md:items-end">
                         <div className="grid gap-1.5">
                             <Label htmlFor="roleName">Role Name</Label>
@@ -218,7 +218,7 @@ const RolesPage = () => {
                                 required
                             />
                         </div>
-                        <Button type="submit" disabled={saving} isLoading={saving}>Save Role</Button>
+                        <Button className="w-full md:w-auto" type="submit" disabled={saving} isLoading={saving}>Save Role</Button>
                     </form>
                 </div>
             )}
@@ -264,7 +264,7 @@ const RolesPage = () => {
                         ))}
                     </div>
 
-                    <div className="rounded-xl border bg-card/70 p-5">
+                    <div className="rounded-xl border bg-card/70 p-4 sm:p-5">
                         {!selectedRole ? (
                             <p className="text-sm text-muted-foreground">Select a role to configure permissions and limits.</p>
                         ) : (
@@ -333,7 +333,7 @@ const RolesPage = () => {
                                 </div>
 
                                 <div className="flex justify-end">
-                                    <Button onClick={saveRoleConfig} isLoading={saving} disabled={saving}>
+                                    <Button className="w-full sm:w-auto" onClick={saveRoleConfig} isLoading={saving} disabled={saving}>
                                         <Save className="mr-2 h-4 w-4" /> Save Role Configuration
                                     </Button>
                                 </div>

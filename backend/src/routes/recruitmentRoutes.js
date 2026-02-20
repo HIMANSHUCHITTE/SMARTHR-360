@@ -1,5 +1,5 @@
 const express = require('express');
-const { getJobs, createJob, applyForJob, getApplications } = require('../controllers/recruitmentController');
+const { getJobs, createJob, applyForJob, applyRegisteredUserToJob, getApplications } = require('../controllers/recruitmentController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireTenant } = require('../middlewares/tenantMiddleware');
 const { authorizeRoles } = require('../middlewares/rbacMiddleware');
@@ -10,14 +10,15 @@ const router = express.Router();
 // For MVP, we'll make 'apply' public-ish but backend likely expects context. 
 // Actually, 'apply' is usually public.
 
-router.post('/jobs/:id/apply', applyForJob); // Public endpoint
+router.get('/jobs', getJobs); // Public listing endpoint
+router.post('/jobs/:id/apply', applyForJob); // Public apply endpoint
 
 // Protected Routes
 router.use(protect);
 router.use(requireTenant);
 
-router.get('/jobs', getJobs); // List jobs for org
-router.post('/jobs', authorizeRoles('Owner'), createJob);
+router.post('/jobs', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), createJob);
+router.post('/jobs/:id/apply-user', authorizeRoles('Owner', 'Admin', 'HR Manager', 'CEO'), applyRegisteredUserToJob);
 router.get('/jobs/:id/applications', authorizeRoles('Owner'), getApplications);
 
 module.exports = router;

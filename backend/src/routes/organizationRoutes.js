@@ -5,6 +5,7 @@ const {
     updateOrganizationSubscription,
     getHierarchyConfig,
     updateHierarchyConfig,
+    deleteOrganization,
 } = require('../controllers/organizationController');
 const { protect } = require('../middlewares/authMiddleware');
 const { requireTenant } = require('../middlewares/tenantMiddleware');
@@ -18,6 +19,7 @@ router.use(requireTenant);
 
 router.get('/', getOrganization);
 router.patch('/', authorizeRoles('Owner', 'Admin'), updateOrganization);
+router.delete('/', authorizeRoles('Owner'), deleteOrganization);
 router.patch('/subscription', authorizeRoles('Owner', 'Admin'), updateOrganizationSubscription);
 router.get('/hierarchy', getHierarchyConfig);
 router.patch('/hierarchy', authorizeRoles('Owner', 'Admin'), updateHierarchyConfig);

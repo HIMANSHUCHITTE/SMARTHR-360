@@ -49,12 +49,12 @@ const PayrollPage = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Payroll</h1>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Payroll</h1>
                     <p className="text-muted-foreground">Manage ongoing and past payroll cycles.</p>
                 </div>
-                <Button onClick={handleRunPayroll} disabled={runningPayroll}>
+                <Button className="w-full sm:w-auto" onClick={handleRunPayroll} disabled={runningPayroll}>
                     {runningPayroll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                     Run Payroll
                 </Button>
@@ -66,7 +66,7 @@ const PayrollPage = () => {
                 </div>
             ) : (
                 <div className="rounded-xl border bg-card text-card-foreground shadow overflow-hidden">
-                    <div className="p-4 border-b bg-muted/50 grid grid-cols-5 gap-4 font-medium text-sm">
+                    <div className="hidden grid-cols-5 gap-4 border-b bg-muted/50 p-4 text-sm font-medium md:grid">
                         <div className="col-span-1">Period</div>
                         <div>Employee ID</div>
                         <div>Basic Salary</div>
@@ -83,7 +83,7 @@ const PayrollPage = () => {
                             </div>
                         ) : (
                             payrolls.map(record => (
-                                <div key={record.id} className="p-4 grid grid-cols-5 gap-4 text-sm items-center hover:bg-muted/50 transition-colors">
+                                <div key={record.id} className="space-y-2 p-4 text-sm transition-colors hover:bg-muted/50 md:grid md:grid-cols-5 md:items-center md:gap-4 md:space-y-0">
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-muted-foreground" />
                                         <span>
@@ -91,10 +91,11 @@ const PayrollPage = () => {
                                         </span>
                                     </div>
                                     <div className="font-mono text-xs text-muted-foreground">
+                                        <span className="md:hidden font-medium text-foreground">Employee ID: </span>
                                         {record.employeeId.substring(0, 8)}...
                                     </div>
-                                    <div>${record.basicSalary}</div>
-                                    <div className="font-bold text-green-600">${record.netPayable}</div>
+                                    <div><span className="md:hidden font-medium text-foreground">Basic: </span>${record.basicSalary}</div>
+                                    <div className="font-bold text-green-600"><span className="md:hidden font-medium text-foreground">Net: </span>${record.netPayable}</div>
                                     <div>
                                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${record.status === 'PAID'
                                                 ? 'bg-green-50 text-green-700 ring-green-600/20'

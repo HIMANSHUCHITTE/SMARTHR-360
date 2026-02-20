@@ -27,6 +27,7 @@ const DashboardHome = () => {
         organization,
         organizationRequestStatus,
         setOrganizationRequestStatus,
+        setOrganization,
     } = useAuthStore();
     const [ownerRequestState, setOwnerRequestState] = useState(organizationRequestStatus || null);
     const [orgTypeOptions, setOrgTypeOptions] = useState([]);
@@ -42,8 +43,10 @@ const DashboardHome = () => {
     useEffect(() => {
         if (!needsOwnerOnboarding) return;
 
-        const loadOwnerState = async () => {
-            setLoadingRequestState(true);
+        const loadOwnerState = async ({ silent = false } = {}) => {
+            if (!silent) {
+                setLoadingRequestState(true);
+            }
             setRequestError('');
             try {
                 const [stateResp, typesResp] = await Promise.all([
@@ -54,6 +57,12 @@ const DashboardHome = () => {
                 const stateData = stateResp.data || null;
                 setOwnerRequestState(stateData);
                 setOrganizationRequestStatus(stateData?.request || null);
+                if (stateData?.state === 'APPROVED' && stateData?.organization) {
+                    setOrganization(stateData.organization);
+                    if (typeof window !== 'undefined' && stateData.organization.id) {
+                        localStorage.setItem('owner-active-organization-id', String(stateData.organization.id));
+                    }
+                }
 
                 const options = Array.isArray(typesResp.data?.organizationTypes)
                     ? typesResp.data.organizationTypes
@@ -77,12 +86,16 @@ const DashboardHome = () => {
             } catch (error) {
                 setRequestError(error.response?.data?.message || 'Failed to load organization request state');
             } finally {
-                setLoadingRequestState(false);
+                if (!silent) {
+                    setLoadingRequestState(false);
+                }
             }
         };
 
         loadOwnerState();
-    }, [needsOwnerOnboarding, setOrganizationRequestStatus]);
+        const intervalId = setInterval(() => loadOwnerState({ silent: true }), 15000);
+        return () => clearInterval(intervalId);
+    }, [needsOwnerOnboarding, setOrganization, setOrganizationRequestStatus]);
 
     const submitOrganizationRequest = async () => {
         setRequestError('');

@@ -18,9 +18,13 @@ const AdminDashboard = () => {
     const [busyRequest, setBusyRequest] = useState('');
     const [busyTicket, setBusyTicket] = useState('');
     const [message, setMessage] = useState('');
+    const [autoRefresh, setAutoRefresh] = useState(true);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
-    const fetchAll = useCallback(async () => {
-        setLoading(true);
+    const fetchAll = useCallback(async ({ silent = false } = {}) => {
+        if (!silent) {
+            setLoading(true);
+        }
         try {
             const [analyticsResp, orgResp, ticketResp, requestResp] = await Promise.all([
                 api.get('/admin/analytics'),
@@ -32,17 +36,26 @@ const AdminDashboard = () => {
             setOrganizations(orgResp.data || []);
             setTickets(ticketResp.data || []);
             setOrganizationRequests(requestResp.data || []);
+            setLastUpdatedAt(new Date());
         } catch (error) {
             console.error('Failed to fetch admin data:', error);
             setMessage(error.response?.data?.message || 'Failed to load admin dashboard');
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
     }, []);
 
     useEffect(() => {
         fetchAll();
     }, [fetchAll]);
+
+    useEffect(() => {
+        if (!autoRefresh) return undefined;
+        const timer = setInterval(() => fetchAll({ silent: true }), 20000);
+        return () => clearInterval(timer);
+    }, [autoRefresh, fetchAll]);
 
     const updateOrgStatus = async (id, platformStatus) => {
         setBusyOrg(id);
@@ -134,8 +147,14 @@ const AdminDashboard = () => {
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={sendAnnouncement}><Bell className="mr-2 h-4 w-4" /> Publish Announcement</Button>
                     <Button variant="outline" onClick={fetchAll}><Activity className="mr-2 h-4 w-4" /> Refresh</Button>
+                    <Button variant="outline" onClick={() => setAutoRefresh((v) => !v)}>
+                        Auto Refresh: {autoRefresh ? 'ON' : 'OFF'}
+                    </Button>
                 </div>
             </div>
+            {lastUpdatedAt && (
+                <p className="text-xs text-muted-foreground">Last synced: {lastUpdatedAt.toLocaleTimeString()}</p>
+            )}
 
             <div className="stagger-children grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard title="Total Organizations" value={stats.totalOrgs} subValue={`${stats.activeOrgs} Active`} icon={<Building2 className="h-4 w-4 text-muted-foreground" />} />

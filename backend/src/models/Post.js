@@ -11,6 +11,11 @@ const postSchema = new mongoose.Schema({
         ref: 'Organization',
         default: null,
     },
+    visibility: {
+        type: String,
+        enum: ['PUBLIC', 'ORG_ONLY'],
+        default: 'PUBLIC',
+    },
     content: {
         type: String,
         default: '',
@@ -47,5 +52,6 @@ const postSchema = new mongoose.Schema({
 postSchema.index({ createdAt: -1 });
 postSchema.index({ authorId: 1, createdAt: -1 });
 postSchema.index({ organizationId: 1, createdAt: -1 });
+postSchema.index({ visibility: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Post', postSchema);

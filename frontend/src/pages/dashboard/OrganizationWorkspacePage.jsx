@@ -128,19 +128,19 @@ const OrganizationWorkspacePage = () => {
             initial="hidden"
             animate="show"
         >
-            <motion.div variants={itemVariants} className="owner-hero relative overflow-hidden rounded-2xl border p-5 sm:p-6">
+            <motion.div variants={itemVariants} className="owner-hero relative overflow-hidden rounded-2xl border p-4 sm:p-6">
                 <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-primary/20 blur-3xl" />
                 <div className="pointer-events-none absolute -left-14 bottom-0 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Organization Workspace</h1>
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Organization Workspace</h1>
                         <p className="text-muted-foreground">Type-based employee structure and powers are controlled in this selected organization context.</p>
                         <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border bg-background/80 px-2.5 py-1 text-xs">
                             <Sparkles className="h-3.5 w-3.5 text-accent" />
                             Strategic Overview
                         </div>
                     </div>
-                    <Button variant="outline" onClick={() => navigate('/owner/organization')}>Back to Organizations</Button>
+                    <Button className="w-full sm:w-auto" variant="outline" onClick={() => navigate('/owner/organization')}>Back to Organizations</Button>
                 </div>
 
                 <motion.div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" variants={containerVariants} initial="hidden" animate="show">
@@ -185,7 +185,7 @@ const OrganizationWorkspacePage = () => {
                 ))}
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                     <Building2 className="h-5 w-5 text-primary" />
                     Type Structure Preview
@@ -204,7 +204,7 @@ const OrganizationWorkspacePage = () => {
                 )}
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                     <Shield className="h-5 w-5 text-primary" />
                     Role Power Matrix
@@ -219,10 +219,10 @@ const OrganizationWorkspacePage = () => {
                                     <p className="font-semibold">{role.name}</p>
                                     <span className="rounded-full border px-2 py-0.5 text-xs">Level {role.level || '-'}</span>
                                 </div>
-                                <p className="mt-1 text-xs text-muted-foreground">
+                                <p className="mt-1 break-words text-xs text-muted-foreground">
                                     Powers: {Array.isArray(role.permissions) && role.permissions.length > 0 ? role.permissions.join(', ') : 'No explicit permissions'}
                                 </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
+                                <p className="mt-1 break-words text-xs text-muted-foreground">
                                     Limits:
                                     {' '}Users/Role={role?.limits?.maxUsersPerRole ?? 'No limit'},
                                     {' '}Direct Reports={role?.limits?.maxDirectReports ?? 'No limit'},
@@ -235,7 +235,7 @@ const OrganizationWorkspacePage = () => {
                 )}
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-3 text-lg font-semibold">Pending Salary Details</h2>
                 {!Array.isArray(kpis?.payrollPendingEmployees) || kpis.payrollPendingEmployees.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No pending salary records for current period.</p>

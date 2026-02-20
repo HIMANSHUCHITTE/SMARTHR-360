@@ -62,7 +62,7 @@ const PerformancePage = () => {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Performance Table</h1>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Performance Table</h1>
                 <p className="text-muted-foreground">Organization employee performance summary based on current structure data.</p>
             </div>
 
@@ -102,10 +102,10 @@ const PerformancePage = () => {
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-card shadow p-6">
-                <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="rounded-xl border bg-card p-4 shadow sm:p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="font-semibold">Performance Table (All Employees)</h3>
-                    <div className="flex w-full max-w-sm items-center gap-2">
+                    <div className="flex w-full items-center gap-2 sm:max-w-sm">
                         <Search className="h-4 w-4 text-muted-foreground" />
                         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by employee name..." />
                     </div>

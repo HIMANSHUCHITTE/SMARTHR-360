@@ -272,6 +272,14 @@ const PanelShell = ({ panelName, brand, menuItems, subtitle }) => {
                                                         item.isRead ? 'bg-white' : 'bg-primary/10'
                                                     )}
                                                 >
+                                                    <div className="mb-1 flex flex-wrap items-center gap-1">
+                                                        <span className="rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-semibold">
+                                                            {String(item.category || 'GENERAL').toUpperCase()}
+                                                        </span>
+                                                        <span className="rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-semibold">
+                                                            {String(item.source || 'SYSTEM').toUpperCase()}
+                                                        </span>
+                                                    </div>
                                                     <p className="font-semibold">{item.title || 'Update'}</p>
                                                     <p className="text-slate-600">{item.message || 'New activity available.'}</p>
                                                 </button>

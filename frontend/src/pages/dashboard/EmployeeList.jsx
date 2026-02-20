@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import api from '../../services/api';
-import { Search, UserPlus, X, Loader2, BrainCircuit, Eye, Package2 } from 'lucide-react';
+import { Search, UserPlus, X, Loader2, BrainCircuit, Eye, Package2, UserMinus } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
 const EmployeeList = () => {
@@ -28,6 +28,7 @@ const EmployeeList = () => {
     const [employeeOverview, setEmployeeOverview] = useState(null);
     const [itemForm, setItemForm] = useState({ itemName: '', category: '', specs: '', estimatedValue: '', quantity: 1, notes: '' });
     const [pageError, setPageError] = useState('');
+    const [removingEmployeeId, setRemovingEmployeeId] = useState('');
 
     const [formData, setFormData] = useState({
         userId: '',
@@ -198,6 +199,25 @@ const EmployeeList = () => {
         }
     };
 
+    const removeEmployee = async (emp) => {
+        const fullName = `${emp.userId?.profile?.firstName || ''} ${emp.userId?.profile?.surname || emp.userId?.profile?.lastName || ''}`.trim() || emp.userId?.email || 'employee';
+        const ok = window.confirm(`Remove ${fullName} from organization?`);
+        if (!ok) return;
+
+        setRemovingEmployeeId(emp._id);
+        try {
+            await api.patch(`/organization/employees/${emp._id}/terminate`);
+            if (String(selectedEmployeeId) === String(emp._id)) {
+                closeOverview();
+            }
+            await fetchMasterData();
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to remove employee');
+        } finally {
+            setRemovingEmployeeId('');
+        }
+    };
+
     const selectedUser = useMemo(
         () => eligibleUsers.find((user) => String(user._id) === String(formData.userId)) || null,
         [eligibleUsers, formData.userId]
@@ -218,19 +238,19 @@ const EmployeeList = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Employees</h1>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Employees</h1>
                     <p className="text-muted-foreground">Hire only existing registered users and open employee overview popup for full details.</p>
                 </div>
-                <Button onClick={() => setIsAdding(!isAdding)} className="ring-2 ring-primary/30">
+                <Button onClick={() => setIsAdding(!isAdding)} className="w-full ring-2 ring-primary/30 sm:w-auto">
                     {isAdding ? <X className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
                     {isAdding ? 'Cancel' : 'Hire User'}
                 </Button>
             </div>
 
             {isAdding && (
-                <div className="glass-card p-6 rounded-xl border border-primary/20 bg-primary/5">
+                <div className="glass-card rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-6">
                     <h3 className="font-semibold mb-4">Hire Existing User</h3>
                     <form onSubmit={handleAddEmployee} className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2 md:col-span-2">
@@ -291,8 +311,8 @@ const EmployeeList = () => {
                             <Label>Department</Label>
                             <Input value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
                         </div>
-                        <div className="col-span-2 flex justify-end mt-2">
-                            <Button type="submit" className="ring-2 ring-primary/30">Hire Into Organization</Button>
+                        <div className="col-span-2 mt-2 flex justify-end">
+                            <Button type="submit" className="w-full ring-2 ring-primary/30 sm:w-auto">Hire Into Organization</Button>
                         </div>
                     </form>
                 </div>
@@ -315,7 +335,7 @@ const EmployeeList = () => {
                     </div>
                 ) : (
                     <div className="divide-y">
-                        <div className="grid grid-cols-8 gap-4 p-4 font-medium text-sm text-muted-foreground bg-muted/20">
+                        <div className="hidden grid-cols-8 gap-4 bg-muted/20 p-4 text-sm font-medium text-muted-foreground md:grid">
                             <div className="col-span-2">Name</div>
                             <div>Designation</div>
                             <div>Role</div>
@@ -334,8 +354,8 @@ const EmployeeList = () => {
                             </div>
                         ) : (
                             filteredEmployees.map((emp) => (
-                                <div key={emp._id} className="p-4 grid grid-cols-8 gap-4 text-sm items-center hover:bg-muted/50 transition-colors">
-                                    <div className="col-span-2 flex items-center gap-3">
+                                <div key={emp._id} className="flex flex-col gap-3 p-4 text-sm transition-colors hover:bg-muted/50 md:grid md:grid-cols-8 md:items-center md:gap-4">
+                                    <div className="flex items-center gap-3 md:col-span-2">
                                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-medium text-xs">
                                             {emp.userId?.profile?.firstName?.[0]}{emp.userId?.profile?.lastName?.[0]}
                                         </div>
@@ -344,7 +364,7 @@ const EmployeeList = () => {
                                             <div className="text-xs text-muted-foreground">{emp.userId?.email}</div>
                                         </div>
                                     </div>
-                                    <div className="text-muted-foreground">{emp.designation || '-'}</div>
+                                    <div className="text-muted-foreground"><span className="md:hidden font-medium text-foreground">Designation: </span>{emp.designation || '-'}</div>
                                     <div>
                                         <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                                             {emp.roleId?.name}
@@ -356,13 +376,13 @@ const EmployeeList = () => {
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="font-semibold">{emp.aiResumeRating?.score || 0}</span>
+                                        <span className="font-semibold"><span className="md:hidden font-medium text-foreground">AI: </span>{emp.aiResumeRating?.score || 0}</span>
                                     </div>
-                                    <div className="col-span-2 flex gap-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="ring-1 ring-primary/30"
+                                            className="w-full ring-1 ring-primary/30 sm:w-auto"
                                             disabled={Boolean(ratingBusyId)}
                                             isLoading={ratingBusyId === emp._id}
                                             onClick={() => runAiResumeRating(emp)}
@@ -372,13 +392,23 @@ const EmployeeList = () => {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="ring-1 ring-primary/30"
+                                            className="w-full ring-1 ring-primary/30 sm:w-auto"
                                             onClick={() => openOverview(emp._id)}
                                         >
                                             <Eye className="mr-1 h-3.5 w-3.5" /> Overview
                                         </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="w-full ring-1 ring-rose-300 text-rose-600 hover:bg-rose-50 sm:w-auto"
+                                            isLoading={removingEmployeeId === emp._id}
+                                            disabled={Boolean(removingEmployeeId)}
+                                            onClick={() => removeEmployee(emp)}
+                                        >
+                                            <UserMinus className="mr-1 h-3.5 w-3.5" /> Remove
+                                        </Button>
                                     </div>
-                                    <div className="col-span-8 text-xs text-muted-foreground">
+                                    <div className="text-xs text-muted-foreground md:col-span-8">
                                         Structure:
                                         {' '}
                                         Reports To
@@ -403,17 +433,17 @@ const EmployeeList = () => {
 
             {selectedEmployeeId && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-3">
-                    <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-xl border bg-white p-5 text-slate-900 shadow-2xl">
-                        <div className="mb-4 flex items-center justify-between">
+                    <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-xl border bg-white p-4 text-slate-900 shadow-2xl sm:p-5">
+                        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <h3 className="text-xl font-semibold">Employee Overview</h3>
-                            <Button variant="outline" onClick={closeOverview}>Close</Button>
+                            <Button className="w-full sm:w-auto" variant="outline" onClick={closeOverview}>Close</Button>
                         </div>
 
                         {overviewLoading || !employeeOverview ? (
                             <div className="flex justify-center p-8"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
                         ) : (
                             <div className="space-y-5">
-                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                     <InfoBox label="Name" value={`${employeeOverview.employment?.userId?.profile?.firstName || ''} ${employeeOverview.employment?.userId?.profile?.surname || employeeOverview.employment?.userId?.profile?.lastName || ''}`.trim()} />
                                     <InfoBox label="Email" value={employeeOverview.employment?.userId?.email || '-'} />
                                     <InfoBox label="Role" value={employeeOverview.employment?.roleId?.name || '-'} />
@@ -461,7 +491,7 @@ const EmployeeList = () => {
                                         <Input placeholder="Notes" value={itemForm.notes} onChange={(e) => setItemForm((s) => ({ ...s, notes: e.target.value }))} />
                                     </div>
                                     <div className="mt-2 flex justify-end">
-                                        <Button onClick={addItemToEmployee} className="ring-2 ring-primary/30">Add Item</Button>
+                                        <Button onClick={addItemToEmployee} className="w-full ring-2 ring-primary/30 sm:w-auto">Add Item</Button>
                                     </div>
                                 </div>
 

@@ -90,6 +90,13 @@ const toSlug = (value) => String(value || '')
     .replace(/(^-|-$)+/g, '')
     .slice(0, 48);
 
+const supportsMongoTransactions = () => {
+    const topologyType = mongoose?.connection?.client?.topology?.description?.type || '';
+    return topologyType === 'ReplicaSetWithPrimary'
+        || topologyType === 'ReplicaSetNoPrimary'
+        || topologyType === 'Sharded';
+};
+
 const uniqueSlug = async (base, session) => {
     const seed = base || `org-${Date.now().toString(36)}`;
     let candidate = seed;
@@ -137,11 +144,19 @@ const createHierarchyRoles = async ({ organizationId, organizationType, session 
 };
 
 const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, patch = {} }) => {
-    const session = await mongoose.startSession();
+    const useTransaction = supportsMongoTransactions();
+    const session = useTransaction ? await mongoose.startSession() : null;
+    const writeOptions = session ? { session } : {};
     try {
-        session.startTransaction();
+        if (session) {
+            session.startTransaction();
+        }
 
-        const request = await OrganizationRequest.findById(requestId).session(session);
+        let requestQuery = OrganizationRequest.findById(requestId);
+        if (session) {
+            requestQuery = requestQuery.session(session);
+        }
+        const request = await requestQuery;
         if (!request) {
             throw new Error('Organization request not found');
         }
@@ -185,7 +200,7 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
                 employeeLimit: 50,
                 features: ['core_hrms', 'payroll', 'recruitment', 'reputation'],
             },
-        }], { session });
+        }], writeOptions);
         const organization = organizationRows[0];
 
         await Branch.create([{
@@ -194,7 +209,7 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
             code: 'HQ',
             isHeadOffice: true,
             isActive: true,
-        }], { session });
+        }], writeOptions);
 
         if (Array.isArray(selectedTemplate.departments) && selectedTemplate.departments.length > 0) {
             await Department.insertMany(
@@ -204,7 +219,7 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
                     code: `DPT${String(idx + 1).padStart(2, '0')}`,
                     isActive: true,
                 })),
-                { session },
+                writeOptions,
             );
         }
 
@@ -223,7 +238,7 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
             designation: ownerRole.name,
             department: selectedTemplate.departments?.[0] || 'General',
             joinedAt: new Date(),
-        }], { session });
+        }], writeOptions);
 
         await User.updateOne(
             { _id: request.requestedByUserId },
@@ -233,7 +248,7 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
                     'employment.currentOrganizationId': organization._id,
                 },
             },
-            { session },
+            writeOptions,
         );
 
         request.status = 'APPROVED';
@@ -245,15 +260,21 @@ const provisionOrganizationFromRequest = async ({ requestId, reviewedByUserId, p
             reviewedAt: new Date(),
             reason: String(patch.approvalNote || '').trim(),
         };
-        await request.save({ session });
+        await request.save(writeOptions);
 
-        await session.commitTransaction();
+        if (session) {
+            await session.commitTransaction();
+        }
         return { organization, roles, request };
     } catch (error) {
-        await session.abortTransaction();
+        if (session) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
-        session.endSession();
+        if (session) {
+            session.endSession();
+        }
     }
 };
 

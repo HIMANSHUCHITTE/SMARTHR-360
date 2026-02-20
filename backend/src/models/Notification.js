@@ -16,6 +16,16 @@ const notificationSchema = new mongoose.Schema({
         enum: ['INFO', 'WARNING', 'SUCCESS', 'ERROR'],
         default: 'INFO',
     },
+    category: {
+        type: String,
+        enum: ['GENERAL', 'SYSTEM', 'APPROVAL', 'NETWORK', 'SECURITY', 'HR', 'PAYMENT', 'MG'],
+        default: 'GENERAL',
+    },
+    source: {
+        type: String,
+        default: '',
+        trim: true,
+    },
     title: String,
     message: String,
     isRead: {

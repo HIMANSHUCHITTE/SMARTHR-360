@@ -14,6 +14,7 @@ import DashboardHome from './pages/dashboard/DashboardHome';
 import UserProfile from './pages/dashboard/UserProfile';
 import OrganizationHubPage from './pages/dashboard/OrganizationHubPage';
 import OrganizationWorkspacePage from './pages/dashboard/OrganizationWorkspacePage';
+import OrganizationSettings from './pages/dashboard/OrganizationSettings';
 import EmployeeList from './pages/dashboard/EmployeeList';
 import RolesPage from './pages/dashboard/RolesPage';
 import PayrollPage from './pages/dashboard/PayrollPage';
@@ -108,7 +109,8 @@ function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="help" element={<HelpPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<OrganizationSettings />} />
+          <Route path="account-settings" element={<SettingsPage />} />
         </Route>
 
         <Route

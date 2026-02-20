@@ -129,6 +129,8 @@ exports.approveOrganizationRequest = async (req, res) => {
             await notificationService.send(result.request.requestedByUserId, {
                 organizationId: result.organization._id,
                 type: 'SUCCESS',
+                category: 'APPROVAL',
+                source: 'MG',
                 title: 'Organization approved',
                 message: `${result.organization.name} has been approved and activated.`,
             });
@@ -161,6 +163,8 @@ exports.rejectOrganizationRequest = async (req, res) => {
         try {
             await notificationService.send(row.requestedByUserId, {
                 type: 'WARNING',
+                category: 'APPROVAL',
+                source: 'MG',
                 title: 'Organization request rejected',
                 message: reason,
             });
@@ -511,6 +515,18 @@ exports.createAnnouncement = async (req, res) => {
             activeUntil: activeUntil || null,
             createdBy: req.user._id,
         });
+
+        if ((audience || 'ALL') === 'ALL') {
+            const users = await User.find().select('_id').lean();
+            await Promise.all(users.map((u) => notificationService.send(u._id, {
+                type: severity === 'WARNING' ? 'WARNING' : 'INFO',
+                category: 'MG',
+                source: 'MG',
+                title: `Announcement: ${title}`,
+                message,
+                actionLink: '/notifications',
+            })));
+        }
 
         res.status(201).json(announcement);
     } catch (error) {

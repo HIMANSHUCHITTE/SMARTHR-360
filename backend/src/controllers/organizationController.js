@@ -1,4 +1,20 @@
 const Organization = require('../models/Organization');
+const User = require('../models/User');
+const EmploymentState = require('../models/EmploymentState');
+const Role = require('../models/Role');
+const Branch = require('../models/Branch');
+const Department = require('../models/Department');
+const JobPosting = require('../models/JobPosting');
+const Application = require('../models/Application');
+const EmployeeAsset = require('../models/EmployeeAsset');
+const Attendance = require('../models/Attendance');
+const Notification = require('../models/Notification');
+const OrganizationRequest = require('../models/OrganizationRequest');
+const AuditLog = require('../models/AuditLog');
+const Announcement = require('../models/Announcement');
+const SupportTicket = require('../models/SupportTicket');
+const Post = require('../models/Post');
+const PayrollRecord = require('../models/postgres/PayrollRecord');
 const { getOrganizationTemplate, isValidOrganizationType } = require('../constants/organizationTemplates');
 
 // @desc    Get Current Organization Details
@@ -217,5 +233,75 @@ exports.updateHierarchyConfig = async (req, res) => {
     } catch (error) {
         console.error('Update hierarchy config error', error);
         res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Delete current organization with related records cleanup
+// @route   DELETE /api/organization
+// @access  Private (Owner)
+exports.deleteOrganization = async (req, res) => {
+    try {
+        if (!req.organizationId) {
+            return res.status(400).json({ message: 'Organization context missing' });
+        }
+
+        const org = await Organization.findById(req.organizationId).select('name ownerId');
+        if (!org) {
+            return res.status(404).json({ message: 'Organization not found' });
+        }
+
+        if (!req.user?.isSuperAdmin && String(org.ownerId) !== String(req.user.id)) {
+            return res.status(403).json({ message: 'Only organization owner can delete this organization' });
+        }
+
+        const confirmName = String(req.body?.confirmName || '').trim();
+        if (confirmName && confirmName !== String(org.name || '').trim()) {
+            return res.status(400).json({ message: 'confirmName does not match organization name' });
+        }
+
+        const orgId = String(req.organizationId);
+
+        const employments = await EmploymentState.find({ organizationId: orgId }).select('userId');
+        const userIds = [...new Set(employments.map((item) => String(item.userId)).filter(Boolean))];
+
+        await Promise.all([
+            EmploymentState.deleteMany({ organizationId: orgId }),
+            Role.deleteMany({ organizationId: orgId }),
+            Branch.deleteMany({ organizationId: orgId }),
+            Department.deleteMany({ organizationId: orgId }),
+            JobPosting.deleteMany({ organizationId: orgId }),
+            Application.deleteMany({ organizationId: orgId }),
+            EmployeeAsset.deleteMany({ organizationId: orgId }),
+            Attendance.deleteMany({ organizationId: orgId }),
+            Notification.deleteMany({ organizationId: orgId }),
+            OrganizationRequest.updateMany({ linkedOrganizationId: orgId }, { $set: { linkedOrganizationId: null } }),
+            AuditLog.deleteMany({ organizationId: orgId }),
+            Announcement.deleteMany({ organizationId: orgId }),
+            SupportTicket.deleteMany({ organizationId: orgId }),
+            Post.deleteMany({ organizationId: orgId }),
+            PayrollRecord.destroy({ where: { organizationId: orgId } }),
+        ]);
+
+        await Organization.deleteOne({ _id: orgId });
+
+        for (const userId of userIds) {
+            const activeEmployment = await EmploymentState.findOne({ userId, status: 'ACTIVE' })
+                .select('organizationId')
+                .lean();
+            await User.findByIdAndUpdate(userId, {
+                $set: {
+                    'employment.status': activeEmployment ? 'ACTIVE' : 'INACTIVE',
+                    'employment.currentOrganizationId': activeEmployment?.organizationId || null,
+                },
+            });
+        }
+
+        return res.json({
+            message: 'Organization deleted successfully',
+            deletedOrganizationId: orgId,
+        });
+    } catch (error) {
+        console.error('Delete organization error', error);
+        return res.status(500).json({ message: 'Server Error' });
     }
 };

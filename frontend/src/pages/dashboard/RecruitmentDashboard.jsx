@@ -9,6 +9,11 @@ const RecruitmentDashboard = () => {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
+    const [selectedJobId, setSelectedJobId] = useState('');
+    const [candidateQuery, setCandidateQuery] = useState('');
+    const [candidateResults, setCandidateResults] = useState([]);
+    const [searchingCandidates, setSearchingCandidates] = useState(false);
+    const [shortlistingUserId, setShortlistingUserId] = useState('');
     const [formData, setFormData] = useState({
         title: '',
         department: '',
@@ -25,7 +30,11 @@ const RecruitmentDashboard = () => {
     const fetchJobs = async () => {
         try {
             const { data } = await api.get('/recruitment/jobs');
-            setJobs(data);
+            const rows = Array.isArray(data) ? data : [];
+            setJobs(rows);
+            if (!selectedJobId && rows.length > 0) {
+                setSelectedJobId(rows[0]._id);
+            }
         } catch (error) {
             console.error('Failed to fetch jobs:', error);
         } finally {
@@ -47,38 +56,52 @@ const RecruitmentDashboard = () => {
             alert('Job Posting Created!');
         } catch (error) {
             console.error(error);
-            alert('Failed to create job');
+            alert(error.response?.data?.message || 'Failed to create job');
         }
     };
 
-    // Mock Apply for demo purposes (Since we don't have a public candidate portal yet)
-    const mockApply = async (jobId) => {
-        const name = prompt("Candidate Name:");
-        if (!name) return;
-        const resumeText = prompt("Paste Resume Text (Keywords: React, Node, Leadership...):");
-        if (!resumeText) return;
-
+    const searchCandidates = async () => {
+        const q = String(candidateQuery || '').trim();
+        if (!q) {
+            setCandidateResults([]);
+            return;
+        }
+        setSearchingCandidates(true);
         try {
-            const { data } = await api.post(`/recruitment/jobs/${jobId}/apply`, {
-                candidateName: name,
-                email: `${name.toLowerCase().replace(/\s/g, '.')}@example.com`,
-                resumeText
-            });
-            alert(`Application Submitted! AI Analysis: ${data.aiAnalysis || 'Pending'}`);
-            // Ideally fetch applications for this job to show count update
+            const { data } = await api.get(`/network/search?q=${encodeURIComponent(q)}`);
+            setCandidateResults(Array.isArray(data) ? data : []);
         } catch (error) {
-            alert('Failed to apply: ' + (error.response?.data?.message || error.message));
+            console.error('Candidate search failed', error);
+            alert(error.response?.data?.message || 'Failed to search users');
+        } finally {
+            setSearchingCandidates(false);
+        }
+    };
+
+    const autoShortlistCandidate = async (jobId, userId) => {
+        if (!jobId) {
+            alert('Please select a job first');
+            return;
+        }
+        setShortlistingUserId(String(userId));
+        try {
+            const { data } = await api.post(`/recruitment/jobs/${jobId}/apply-user`, { userId });
+            alert(`Auto-screen complete. AI Score: ${data.aiScore ?? 'N/A'} | ${data.aiAnalysis || 'No analysis'}`);
+        } catch (error) {
+            alert(error.response?.data?.message || 'Failed to auto-screen candidate');
+        } finally {
+            setShortlistingUserId('');
         }
     };
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">AI Recruitment</h1>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">AI Recruitment</h1>
                     <p className="text-muted-foreground">Smart hiring with AI-powered resume screening.</p>
                 </div>
-                <Button onClick={() => setIsCreating(!isCreating)}>
+                <Button className="w-full sm:w-auto" onClick={() => setIsCreating(!isCreating)}>
                     {isCreating ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
                     Post Job
                 </Button>
@@ -137,6 +160,57 @@ const RecruitmentDashboard = () => {
                 </div>
             )}
 
+            <div className="glass-card p-6 rounded-xl border">
+                <h3 className="font-semibold mb-1">Auto Recruit from App Users</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Resume/profile already app me saved ho to user search karo, phir AI auto-screen karke application create ho jayegi.
+                </p>
+                <div className="grid gap-3 md:grid-cols-[220px_1fr_auto]">
+                    <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                        value={selectedJobId}
+                        onChange={(e) => setSelectedJobId(e.target.value)}
+                    >
+                        <option value="">Select Job</option>
+                        {jobs.map((job) => (
+                            <option key={job._id} value={job._id}>{job.title}</option>
+                        ))}
+                    </select>
+                    <Input
+                        placeholder="Search by name, email, headline..."
+                        value={candidateQuery}
+                        onChange={(e) => setCandidateQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && searchCandidates()}
+                    />
+                    <Button className="w-full md:w-auto" onClick={searchCandidates} isLoading={searchingCandidates} disabled={searchingCandidates}>
+                        Search User
+                    </Button>
+                </div>
+                {candidateResults.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        {candidateResults.slice(0, 12).map((candidate) => {
+                            const name = `${candidate?.profile?.firstName || ''} ${candidate?.profile?.surname || candidate?.profile?.lastName || ''}`.trim() || candidate?.email;
+                            return (
+                                <div key={candidate._id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background/60 p-3">
+                                    <div>
+                                        <p className="text-sm font-semibold">{name}</p>
+                                        <p className="text-xs text-muted-foreground">{candidate?.email} | {candidate?.professional?.headline || 'No headline'}</p>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => autoShortlistCandidate(selectedJobId, candidate._id)}
+                                        isLoading={shortlistingUserId === String(candidate._id)}
+                                        disabled={!selectedJobId || Boolean(shortlistingUserId)}
+                                    >
+                                        Auto Screen & Add
+                                    </Button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             {loading ? (
                 <div className="flex justify-center p-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -174,9 +248,9 @@ const RecruitmentDashboard = () => {
                                 </div>
                             </div>
                             <div className="bg-muted/50 p-4 flex items-center justify-between border-t gap-2">
-                                <Button variant="outline" size="sm" className="w-full" onClick={() => mockApply(job._id)}>
+                                <Button variant="outline" size="sm" className="w-full" onClick={() => setSelectedJobId(job._id)}>
                                     <BrainCircuit className="mr-2 h-3 w-3" />
-                                    Test Apply with AI
+                                    Select for Auto Recruit
                                 </Button>
                                 {/* <Button size="sm" className="w-full">View Applicants</Button> */}
                             </div>

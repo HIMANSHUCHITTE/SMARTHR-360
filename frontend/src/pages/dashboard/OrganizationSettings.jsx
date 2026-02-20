@@ -96,6 +96,7 @@ const OrganizationSettings = () => {
     const [history, setHistory] = useState([]);
     const [organizationContexts, setOrganizationContexts] = useState([]);
     const [switchingOrganizationId, setSwitchingOrganizationId] = useState('');
+    const [deletingOrganization, setDeletingOrganization] = useState(false);
     const [hierarchyConfig, setHierarchyConfig] = useState(DEFAULT_HIERARCHY_CONFIG);
     const [paymentForm, setPaymentForm] = useState({
         cardHolder: '',
@@ -206,6 +207,43 @@ const OrganizationSettings = () => {
         }
     };
 
+    const deleteCurrentOrganization = async () => {
+        const orgName = String(organization?.name || '').trim();
+        if (!orgName) {
+            setMessage('Active organization not found');
+            return;
+        }
+
+        const typed = window.prompt(`Type organization name to confirm delete: ${orgName}`);
+        if (typed === null) return;
+        if (String(typed).trim() !== orgName) {
+            setMessage('Organization name mismatch. Delete canceled.');
+            return;
+        }
+
+        setDeletingOrganization(true);
+        setMessage('');
+        try {
+            await api.delete('/organization', { data: { confirmName: orgName } });
+            localStorage.removeItem('owner-active-organization-id');
+            setOrganization(null);
+
+            const { data: orgListData } = await api.get('/auth/organizations');
+            const list = Array.isArray(orgListData?.organizations) ? orgListData.organizations : [];
+            if (list.length > 0 && list[0]?.organizationId) {
+                await switchOrganization(String(list[0].organizationId));
+                setMessage('Organization deleted. Switched to another organization context.');
+            } else {
+                setMessage('Organization deleted successfully.');
+                await fetchOrgSettings();
+            }
+        } catch (error) {
+            setMessage(error.response?.data?.message || 'Failed to delete organization');
+        } finally {
+            setDeletingOrganization(false);
+        }
+    };
+
     const getPlanPrice = (planId) => {
         if (!pricing?.plans?.[planId]) return '$0';
         const amount = pricing.plans[planId][billingCycle] || 0;
@@ -231,15 +269,28 @@ const OrganizationSettings = () => {
     }
 
     return (
-        <div className="animate-page-in space-y-6 max-w-6xl">
+        <div className="animate-page-in mx-auto max-w-6xl space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Organization Settings</h1>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Organization Settings</h1>
                 <p className="text-muted-foreground">Manage company profile and active subscription with checkout.</p>
             </div>
 
-            <div className="glass-card interactive-card p-6">
+            <div className="glass-card interactive-card p-4 sm:p-6">
                 <h3 className="font-semibold text-lg mb-1">My Organizations</h3>
                 <p className="text-sm text-muted-foreground mb-4">Select organization context. Billing and employee controls are per organization.</p>
+                {organization && (
+                    <div className="mb-4">
+                        <Button
+                            variant="outline"
+                            className="w-full border-rose-300 text-rose-600 hover:bg-rose-50 sm:w-auto"
+                            onClick={deleteCurrentOrganization}
+                            isLoading={deletingOrganization}
+                            disabled={deletingOrganization || Boolean(switchingOrganizationId)}
+                        >
+                            Delete Current Organization
+                        </Button>
+                    </div>
+                )}
                 {organizationContexts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No approved organizations found for your account.</p>
                 ) : (
@@ -267,7 +318,7 @@ const OrganizationSettings = () => {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="glass-card interactive-card p-6 relative overflow-hidden group">
+                <div className="glass-card interactive-card group relative overflow-hidden p-4 sm:p-6">
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
                         <Building2 className="h-24 w-24" />
                     </div>
@@ -286,7 +337,7 @@ const OrganizationSettings = () => {
 
                         <div className="grid gap-2">
                             <Label>Primary Brand Color</Label>
-                            <div className="flex gap-4 items-center">
+                            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
                                 <input type="color" className="h-12 w-12 rounded-lg border-2 border-border cursor-pointer overflow-hidden p-0" {...register('branding.primaryColor')} />
                                 <div className="flex-1">
                                     <Input placeholder="#000000" {...register('branding.primaryColor')} />
@@ -295,14 +346,14 @@ const OrganizationSettings = () => {
                         </div>
                     </div>
                     <div className="mt-6 flex justify-end">
-                        <Button type="submit" disabled={loading} className="min-w-[140px]">
+                        <Button type="submit" disabled={loading} className="w-full min-w-[140px] sm:w-auto">
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                             Save Changes
                         </Button>
                     </div>
                 </div>
 
-                <div className="glass-card interactive-card p-6">
+                <div className="glass-card interactive-card p-4 sm:p-6">
                     <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
                         <Network className="h-5 w-5 text-primary" />
                         Organization Hierarchy & Reporting
@@ -387,7 +438,7 @@ const OrganizationSettings = () => {
                 </div>
             </form>
 
-            <div className="glass-card interactive-card p-6">
+            <div className="glass-card interactive-card p-4 sm:p-6">
                 <h3 className="font-semibold text-lg mb-1 flex items-center gap-2">
                     <CreditCard className="h-5 w-5 text-primary" />
                     Subscription & Payment
@@ -396,7 +447,7 @@ const OrganizationSettings = () => {
                     Current plan: <span className="font-semibold text-foreground">{currentPlanId}</span>
                 </p>
 
-                <div className="stagger-children grid gap-4 md:grid-cols-3">
+                <div className="stagger-children grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                     {plans.map((plan) => {
                         const isCurrent = currentPlanId === plan.id;
                         return (
@@ -419,7 +470,7 @@ const OrganizationSettings = () => {
             </div>
 
             {paymentOpen && (
-                <div className="glass-card interactive-card p-6">
+                <div className="glass-card interactive-card p-4 sm:p-6">
                     <h4 className="text-lg font-semibold">Checkout: {paymentTarget}</h4>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                         <div className="grid gap-1">
@@ -454,26 +505,26 @@ const OrganizationSettings = () => {
                             <Input value={paymentForm.cvv} onChange={(e) => setPaymentForm((s) => ({ ...s, cvv: e.target.value }))} placeholder="123" />
                         </div>
                     </div>
-                    <div className="mt-4 flex gap-2">
-                        <Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
-                        <Button isLoading={payingPlan === paymentTarget} disabled={Boolean(payingPlan)} onClick={payNow}>Pay & Activate</Button>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <Button className="w-full sm:w-auto" variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
+                        <Button className="w-full sm:w-auto" isLoading={payingPlan === paymentTarget} disabled={Boolean(payingPlan)} onClick={payNow}>Pay & Activate</Button>
                     </div>
                 </div>
             )}
 
-            <div className="glass-card interactive-card p-6">
+            <div className="glass-card interactive-card p-4 sm:p-6">
                 <h3 className="mb-3 flex items-center gap-2 font-semibold"><ReceiptText className="h-4 w-4" /> Payment History</h3>
                 {history.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No payment records yet.</p>
                 ) : (
                     <div className="space-y-2">
                         {history.slice(0, 8).map((txn) => (
-                            <div key={txn._id} className="flex items-center justify-between rounded-md border bg-background/60 px-3 py-2 text-sm">
+                            <div key={txn._id} className="flex flex-col gap-2 rounded-md border bg-background/60 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <p className="font-medium">{txn.planId} ({txn.billingCycle})</p>
                                     <p className="text-xs text-muted-foreground">Ref: {txn.transactionRef}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-left sm:text-right">
                                     <p className="font-semibold">${txn.amount}</p>
                                     <p className="text-xs text-muted-foreground">{txn.status}</p>
                                 </div>

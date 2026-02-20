@@ -134,10 +134,10 @@ const OrganizationHubPage = () => {
             initial="hidden"
             animate="show"
         >
-            <motion.div variants={itemVariants} className="owner-hero relative overflow-hidden rounded-2xl border p-6 sm:p-7">
+            <motion.div variants={itemVariants} className="owner-hero relative overflow-hidden rounded-2xl border p-4 sm:p-7">
                 <div className="pointer-events-none absolute -right-12 -top-16 h-44 w-44 rounded-full bg-primary/20 blur-3xl" />
                 <div className="pointer-events-none absolute -left-16 bottom-0 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
-                <h1 className="text-3xl font-bold tracking-tight">Organization Hub</h1>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Organization Hub</h1>
                 <p className="mt-1 text-muted-foreground">Create organization requests and launch HRMS workspaces with smooth context switching.</p>
                 <div className="mt-5 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
                     <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/80 px-2.5 py-1">
@@ -155,7 +155,7 @@ const OrganizationHubPage = () => {
                 </div>
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
                     <PlusCircle className="h-5 w-5 text-primary" />
                     Create Organization Request
@@ -184,13 +184,13 @@ const OrganizationHubPage = () => {
                     <Label>Description</Label>
                     <textarea className="min-h-[80px] rounded-md border bg-background/90 p-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={form.description} onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} />
                 </div>
-                <div className="mt-4 flex items-center justify-between">
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground">Pending requests: {pendingCount}</p>
-                    <Button onClick={submitRequest} isLoading={submitting} disabled={submitting}>Submit Request</Button>
+                    <Button className="w-full sm:w-auto" onClick={submitRequest} isLoading={submitting} disabled={submitting}>Submit Request</Button>
                 </div>
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
                     <Building2 className="h-5 w-5 text-primary" />
                     My Organizations ({organizations.length})
@@ -229,7 +229,7 @@ const OrganizationHubPage = () => {
                 )}
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass-card rounded-xl p-5">
+            <motion.div variants={itemVariants} className="glass-card rounded-xl p-4 sm:p-5">
                 <h2 className="mb-4 text-lg font-semibold">Request History</h2>
                 {requests.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No request history.</p>
