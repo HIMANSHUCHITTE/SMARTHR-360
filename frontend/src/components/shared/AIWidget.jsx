@@ -32,7 +32,7 @@ const AIWidget = () => {
 
         const allowedSuffixByPanel = {
             owner: new Set(['/dashboard', '/profile', '/organization', '/employees', '/roles', '/payroll', '/recruitment', '/org-chart', '/performance', '/feed', '/network', '/chat', '/help', '/settings']),
-            subadmin: new Set(['/dashboard', '/profile', '/attendance', '/leaves', '/documents', '/feed', '/network', '/chat', '/help', '/settings']),
+            subadmin: new Set(['/dashboard', '/workarea', '/profile', '/attendance', '/leaves', '/documents', '/jobs', '/feed', '/network', '/chat', '/help', '/settings']),
             user: new Set(['/dashboard', '/profile', '/jobs', '/feed', '/network', '/chat', '/help', '/settings']),
             superadmin: new Set(['/dashboard', '/help', '/settings']),
         };

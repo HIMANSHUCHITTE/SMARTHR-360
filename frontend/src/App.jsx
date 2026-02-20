@@ -33,6 +33,7 @@ import HelpPage from './pages/dashboard/HelpPage';
 import JobsPage from './pages/dashboard/JobsPage';
 import ChatPage from './pages/dashboard/ChatPage';
 import NotificationsPage from './pages/dashboard/NotificationsPage';
+import WorkAreaPage from './pages/dashboard/WorkAreaPage';
 
 import { useAuthStore } from './store/authStore';
 import AIWidget from './components/shared/AIWidget';
@@ -58,7 +59,6 @@ const inferPanel = ({ panel, user, organization }) => {
   const role = String(organization?.role || '').trim().toLowerCase();
   if (role === 'owner') return 'OWNER';
   if (role) return 'SUBADMIN';
-  if (organization?.id || organization?._id) return 'SUBADMIN';
   return 'USER';
 };
 
@@ -141,6 +141,7 @@ function App() {
           element={<PanelRoute allowedPanels={['SUBADMIN']}><SubAdminLayout /></PanelRoute>}
         >
           <Route path="dashboard" element={<DashboardHome />} />
+          <Route path="workarea" element={<WorkAreaPage />} />
           <Route path="profile" element={<UserProfile />} />
           <Route path="organization" element={<OrganizationSettings />} />
           <Route path="employees" element={<EmployeeList />} />
